@@ -1,0 +1,10 @@
+{
+  "token": "Your Bot-Token here!",
+  "database": {
+    "address": "localhost",
+    "port": 3306,
+    "password": "Password for SQL-Server here!",
+    "database": "dragobot",
+    "username": "dragobot"
+  }
+}

@@ -14,12 +14,16 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 import javax.security.auth.login.LoginException;
 
 import org.json.JSONObject;
+
+import de.Ryeera.libs.JSONUtils;
+import de.Ryeera.libs.SQLConnector;
 
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.JDA;
@@ -30,6 +34,7 @@ import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.MessageChannel;
 import net.dv8tion.jda.api.entities.MessageEmbed;
+import net.dv8tion.jda.api.entities.PermissionOverride;
 import net.dv8tion.jda.api.entities.Role;
 import net.dv8tion.jda.api.entities.TextChannel;
 import net.dv8tion.jda.api.entities.VoiceChannel;
@@ -43,6 +48,7 @@ import net.dv8tion.jda.api.events.message.guild.GuildMessageReceivedEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.requests.GatewayIntent;
 import net.dv8tion.jda.api.requests.restaction.ChannelAction;
+import net.dv8tion.jda.api.utils.cache.CacheFlag;
 
 public class DragoBot extends ListenerAdapter {
 
@@ -103,6 +109,7 @@ public class DragoBot extends ListenerAdapter {
 
 		log("INFO", "Setting up Discord-Connection...");
 		JDABuilder builder = JDABuilder.create(GatewayIntent.GUILD_MESSAGES, GatewayIntent.GUILD_VOICE_STATES);
+		builder.enableCache(CacheFlag.MEMBER_OVERRIDES);
 		builder.setToken(config.getString("token"));
 		builder.setActivity(Activity.watching("the VoiceChannels"));
 		builder.addEventListeners(new DragoBot());
@@ -134,6 +141,23 @@ public class DragoBot extends ListenerAdapter {
 			}
 		}
 		log("INFO", "Bot started!");
+		Executors.newScheduledThreadPool(1).scheduleAtFixedRate(() -> {
+			for (Guild guild : jda.getGuilds()) {
+				for (VoiceChannel vc : guild.getVoiceChannels()) {
+					TextChannel tc = guild.getTextChannelById(vc.getId());
+					for (PermissionOverride perm : tc.getMemberPermissionOverrides()) {
+						if (!vc.getMembers().contains(perm.getMember())) {
+							perm.delete().queue();
+						}
+					}
+					for (Member member : vc.getMembers()) {
+						if (!tc.canTalk(member)) {
+							tc.putPermissionOverride(member).grant(readPerms).queue();
+						}
+					}
+				}
+			}
+		}, 0, 60, TimeUnit.MINUTES);
 	}
 
 	public static String formatTime(long millisecs, String format) {
@@ -141,7 +165,7 @@ public class DragoBot extends ListenerAdapter {
 	}
 
 	public static void logStackTrace(Exception e) {
-		log("EXCEPTION", e.getMessage());
+		log("EXCEPTION", e.toString());
 		for (StackTraceElement s : e.getStackTrace()) {
 			log("STACKTRACE", "at " + s.getClassName() + "." + s.getMethodName() + ":" + s.getLineNumber());
 		}
@@ -539,17 +563,17 @@ public class DragoBot extends ListenerAdapter {
 		}
 	}
 
-	public String getAssociation(String vcID) throws SQLException {
+	public static String getAssociation(String vcID) throws SQLException {
 		ResultSet association = sql.executeQuery("SELECT * FROM `Associations` WHERE `vc` = " + vcID);
 		association.next();
 		return association.getString("tc");
 	}
 
-	public void removeTemporaryVC(String vcID) {
+	public static void removeTemporaryVC(String vcID) {
 		sql.executeUpdate("DELETE FROM `Temps` WHERE `id`= " + vcID);
 	}
 
-	public boolean isTemporaryVC(String vcID) {
+	public static boolean isTemporaryVC(String vcID) {
 		ResultSet results = sql.executeQuery("SELECT * FROM `Temps` WHERE `id` = " + vcID);
 		try {
 			return results.next();
@@ -564,15 +588,15 @@ public class DragoBot extends ListenerAdapter {
 		}
 	}
 
-	public void addTemporaryVC(String vcID) {
+	public static void addTemporaryVC(String vcID) {
 		sql.executeUpdate("INSERT INTO `Temps` (`id`) VALUES ('" + vcID + "')");
 	}
 
-	public void setAssociation(String vcID, String tcID) {
+	public static void setAssociation(String vcID, String tcID) {
 		sql.executeUpdate("INSERT INTO `Associations` (`vc`, `tc`) VALUES ('" + vcID + "', '" + tcID + "')");
 	}
 
-	public void removeAssociation(String vcID) {
+	public static void removeAssociation(String vcID) {
 		sql.executeUpdate("DELETE FROM `Associations` WHERE `vc` = " + vcID);
 	}
 }

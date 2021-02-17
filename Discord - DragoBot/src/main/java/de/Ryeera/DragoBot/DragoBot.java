@@ -282,7 +282,10 @@ public class DragoBot extends ListenerAdapter {
 					action.setParent(vc.getParent());
 				action.setTopic(guildConfig.getString("Descriptions").replace("{vc}", vc.getName()));
 				action.addPermissionOverride(guild.getPublicRole(), null, readPerms);
-				setAssociation(vc.getId(), action.complete().getId());
+				action.addPermissionOverride(guild.getSelfMember(), readPerms, null);
+				action.queue(tc -> {
+					setAssociation(vc.getId(), tc.getId());
+				});
 			}
 		} catch (SQLException e) {
 			logStackTrace(e);

@@ -449,7 +449,7 @@ public class DragoBot extends ListenerAdapter {
 							logger.logStackTrace(e);
 						}
 					}
-					channel.sendMessage("").queueAfter(10, TimeUnit.SECONDS);
+					channel.sendMessage("Your server is now up-to-date and remove my Admin-Permissions!").queueAfter(10, TimeUnit.SECONDS);
 				} else if (message.startsWith("debug ")) {
 					message = message.substring(6);
 					if (message.equals("servercount")) {

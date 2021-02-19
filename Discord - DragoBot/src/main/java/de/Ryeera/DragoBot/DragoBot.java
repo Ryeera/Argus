@@ -2,14 +2,11 @@ package de.Ryeera.DragoBot;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.PrintWriter;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.text.SimpleDateFormat;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.Date;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
@@ -22,8 +19,10 @@ import javax.security.auth.login.LoginException;
 
 import org.json.JSONObject;
 
+import de.Ryeera.libs.DragoLogger;
 import de.Ryeera.libs.JSONUtils;
 import de.Ryeera.libs.SQLConnector;
+import de.Ryeera.libs.Utils;
 
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.JDA;
@@ -54,8 +53,7 @@ public class DragoBot extends ListenerAdapter {
 
 	private static final String VERSION = "1.1.0";
 
-	private static File logFile;
-	private static PrintWriter log;
+	private static DragoLogger logger;
 
 	private static final File configFile = new File("dragobot.json");
 	private static JSONObject config = new JSONObject();
@@ -68,24 +66,23 @@ public class DragoBot extends ListenerAdapter {
 	public static void main(String[] args) {
 		try {
 			new File("logs").mkdir();
-			logFile = new File("logs" + File.separator + "DragoBot_" + formatTime(System.currentTimeMillis(), "yyyyMMdd_HHmmss") + ".log");
-			log = new PrintWriter(logFile);
+			logger = new DragoLogger(new File("logs" + File.separator + "DragoBot_" + Utils.formatTime(System.currentTimeMillis(), "yyyyMMdd_HHmmss") + ".log"));
 		} catch (Exception e) {
 			e.printStackTrace();
 			System.exit(1);
 		}
 
-		log("INFO", "Starting DragoBot v" + VERSION + "...");
-		log("INFO", "Setting up Configuration...");
+		logger.log("INFO", "Starting DragoBot v" + VERSION + "...");
+		logger.log("INFO", "Setting up Configuration...");
 		try {
 			config = JSONUtils.readJSON(configFile);
 		} catch (IOException e) {
-			log("SEVERE", "Couldn't read config-file! Halting...");
-			logStackTrace(e);
+			logger.log("SEVERE", "Couldn't read config-file! Halting...");
+			logger.logStackTrace(e);
 			return;
 		}
 
-		log("INFO", "Setting up SQL-Connection...");
+		logger.log("INFO", "Setting up SQL-Connection...");
 		JSONObject db = config.getJSONObject("database");
 		sql = new SQLConnector(db.getString("address"), db.getInt("port"), db.getString("username"), db.getString("password"), db.getString("database"));
 		sql.executeUpdate("CREATE TABLE IF NOT EXISTS `Settings` ( " 
@@ -107,7 +104,7 @@ public class DragoBot extends ListenerAdapter {
 				+ "PRIMARY KEY (`id`)) "
 				+ "COMMENT = 'Contains all current temporary voice channels';");
 
-		log("INFO", "Setting up Discord-Connection...");
+		logger.log("INFO", "Setting up Discord-Connection...");
 		JDABuilder builder = JDABuilder.create(GatewayIntent.GUILD_MESSAGES, GatewayIntent.GUILD_VOICE_STATES);
 		builder.enableCache(CacheFlag.MEMBER_OVERRIDES);
 		builder.setToken(config.getString("token"));
@@ -117,24 +114,24 @@ public class DragoBot extends ListenerAdapter {
 			jda = builder.build();
 			jda.awaitReady();
 		} catch (LoginException | InterruptedException e) {
-			logStackTrace(e);
+			logger.logStackTrace(e);
 			System.exit(1);
 		}
 
-		log("INFO", "Checking associations after startup...");
+		logger.log("INFO", "Checking associations after startup...");
 		for (Guild guild : jda.getGuilds()) {
-			try (ResultSet guildConfig = getGuildConfig(guild.getId())) {
+			try (ResultSet guildConfig = getGuildConfig(guild)) {
 				if (!guildConfig.first()) {
 					register(guild);
 				} else if (guildConfig.getBoolean("Initialized")) {
 					initialize(guild);
 				}
 			} catch (SQLException e) {
-				logStackTrace(e);
-				log("ERROR", guild.getName() + "(" + guild.getId() + ") Config couldn't be loaded!");
+				logger.logStackTrace(e);
+				logger.log("ERROR", guild.getName() + "(" + guild.getId() + ") Config couldn't be loaded!");
 			}
 		}
-		log("INFO", "Bot started!");
+		logger.log("INFO", "Bot started!");
 		Executors.newScheduledThreadPool(1).scheduleAtFixedRate(() -> {
 			for (Guild guild : jda.getGuilds()) {
 				for (VoiceChannel vc : guild.getVoiceChannels()) {
@@ -154,25 +151,8 @@ public class DragoBot extends ListenerAdapter {
 		}, 0, 60, TimeUnit.MINUTES);
 	}
 
-	public static String formatTime(long millisecs, String format) {
-		return new SimpleDateFormat(format).format(new Date(millisecs));
-	}
-
-	public static void logStackTrace(Exception e) {
-		log("EXCEPTION", e.toString());
-		for (StackTraceElement s : e.getStackTrace()) {
-			log("STACKTRACE", "at " + s.getClassName() + "." + s.getMethodName() + ":" + s.getLineNumber());
-		}
-	}
-
-	public static void log(String level, String text) {
-		System.out.println("[" + formatTime(System.currentTimeMillis(), "dd.MM.yy HH:mm:ss") + "] [" + level + "] " + text);
-		log.println("[" + formatTime(System.currentTimeMillis(), "dd.MM.yy HH:mm:ss") + "] [" + level + "] " + text);
-		log.flush();
-	}
-
-	public static ResultSet getGuildConfig(String guildID) throws SQLException {
-		ResultSet guildConfig = sql.executeQuery("SELECT * FROM `Settings` WHERE `GuildID` = " + guildID);
+	public static ResultSet getGuildConfig(Guild guild) throws SQLException {
+		ResultSet guildConfig = sql.executeQuery("SELECT * FROM `Settings` WHERE `GuildID` = " + guild.getId());
 		guildConfig.next();
 		return guildConfig;
 	}
@@ -186,12 +166,12 @@ public class DragoBot extends ListenerAdapter {
 		Member member = event.getEntity();
 		if (joined != null) {
 			Guild guild = joined.getGuild();
-			try (ResultSet guildConfig = getGuildConfig(guild.getId())) {
+			try (ResultSet guildConfig = getGuildConfig(guild)) {
 				if (guildConfig.getBoolean("Initialized")) {
 					try {
 						TextChannel tc = guild.getTextChannelById(getAssociation(joined.getId()));
 						if (guild.getAfkChannel() == null || !joined.getId().equals(guild.getAfkChannel().getId())) {
-							log("INFO", "Processing join event for user \"" + member.getUser().getAsTag() + "\" in \""
+							logger.log("INFO", "Processing join event for user \"" + member.getUser().getAsTag() + "\" in \""
 									+ guild.getName() + " / " + joined.getName() + "\"...");
 							tc.putPermissionOverride(member).grant(readPerms).queue();
 							if (guildConfig.getBoolean("Logging")) {
@@ -199,13 +179,13 @@ public class DragoBot extends ListenerAdapter {
 							}
 						}
 					} catch (SQLException e) {
-						log("ERROR", guild.getName() + " / " + joined.getName() + "(" + guild.getId() + " / " + joined.getId() + " has no association!");
-						logStackTrace(e);
+						logger.log("ERROR", guild.getName() + " / " + joined.getName() + "(" + guild.getId() + " / " + joined.getId() + " has no association!");
+						logger.logStackTrace(e);
 					}
 				}
 			} catch (SQLException e1) {
-				log("ERROR", guild.getName() + "(" + guild.getId() + ") Config couldn't be loaded!");
-				logStackTrace(e1);
+				logger.log("ERROR", guild.getName() + "(" + guild.getId() + ") Config couldn't be loaded!");
+				logger.logStackTrace(e1);
 				return;
 			}
 			if (toBeDeleted.containsKey(joined.getIdLong())) {
@@ -215,12 +195,12 @@ public class DragoBot extends ListenerAdapter {
 		}
 		if (left != null) {
 			Guild guild = left.getGuild();
-			try (ResultSet guildConfig = getGuildConfig(guild.getId())) {
+			try (ResultSet guildConfig = getGuildConfig(guild)) {
 				if (guildConfig.getBoolean("Initialized")) {
 					try {
 						TextChannel tc = guild.getTextChannelById(getAssociation(left.getId()));
 						if (guild.getAfkChannel() == null || !left.getId().equals(guild.getAfkChannel().getId())) {
-							log("INFO", "Processing leave event for user \"" + member.getUser().getAsTag() + "\" in \""
+							logger.log("INFO", "Processing leave event for user \"" + member.getUser().getAsTag() + "\" in \""
 									+ guild.getName() + " / " + left.getName() + "\"...");
 							tc.getPermissionOverride(member).delete().queue();
 							if (guildConfig.getBoolean("Logging")) {
@@ -228,8 +208,8 @@ public class DragoBot extends ListenerAdapter {
 							}
 						}
 					} catch (SQLException e) {
-						log("ERROR", guild.getName() + " / " + left.getName() + "(" + guild.getId() + " / " + left.getId() + " has no association!");
-						logStackTrace(e);
+						logger.log("ERROR", guild.getName() + " / " + left.getName() + "(" + guild.getId() + " / " + left.getId() + " has no association!");
+						logger.logStackTrace(e);
 					}
 				}
 				if (isTemporaryVC(left.getId())) {
@@ -242,8 +222,8 @@ public class DragoBot extends ListenerAdapter {
 					}
 				}
 			} catch (SQLException e1) {
-				log("ERROR", guild.getName() + "(" + guild.getId() + ") Config couldn't be loaded!");
-				logStackTrace(e1);
+				logger.log("ERROR", guild.getName() + "(" + guild.getId() + ") Config couldn't be loaded!");
+				logger.logStackTrace(e1);
 				return;
 			}
 		}
@@ -262,9 +242,9 @@ public class DragoBot extends ListenerAdapter {
 	public void onVoiceChannelCreate(VoiceChannelCreateEvent event) {
 		VoiceChannel vc = event.getChannel();
 		Guild guild = event.getGuild();
-		try (ResultSet guildConfig = getGuildConfig(guild.getId())) {
+		try (ResultSet guildConfig = getGuildConfig(guild)) {
 			if (guildConfig.getBoolean("Initialized")) {
-				log("INFO", "VC \"" + vc.getName() + "\" created! Creating text-channel...");
+				logger.log("INFO", "VC \"" + vc.getName() + "\" created! Creating text-channel...");
 				ChannelAction<TextChannel> action = guild
 						.createTextChannel(guildConfig.getString("Names").replace("{vc}", vc.getName()));
 				if (vc.getParent() != null)
@@ -277,8 +257,8 @@ public class DragoBot extends ListenerAdapter {
 				});
 			}
 		} catch (SQLException e) {
-			log("ERROR", guild.getName() + "(" + guild.getId() + ") Config couldn't be loaded!");
-			logStackTrace(e);
+			logger.log("ERROR", guild.getName() + "(" + guild.getId() + ") Config couldn't be loaded!");
+			logger.logStackTrace(e);
 		}
 	}
 
@@ -286,14 +266,14 @@ public class DragoBot extends ListenerAdapter {
 	public void onVoiceChannelDelete(VoiceChannelDeleteEvent event) {
 		VoiceChannel vc = event.getChannel();
 		Guild guild = event.getGuild();
-		try (ResultSet guildConfig = getGuildConfig(guild.getId())) {
+		try (ResultSet guildConfig = getGuildConfig(guild)) {
 			if (guildConfig.getBoolean("Initialized")) {
-				log("INFO", "VC \"" + vc.getName() + "\" deleted! Removing association...");
+				logger.log("INFO", "VC \"" + vc.getName() + "\" deleted! Removing association...");
 				removeAssociation(vc.getId());
 			}
 		} catch (SQLException e) {
-			log("ERROR", guild.getName() + "(" + guild.getId() + ") Config couldn't be loaded!");
-			logStackTrace(e);
+			logger.log("ERROR", guild.getName() + "(" + guild.getId() + ") Config couldn't be loaded!");
+			logger.logStackTrace(e);
 		}
 	}
 
@@ -301,11 +281,11 @@ public class DragoBot extends ListenerAdapter {
 	public void onTextChannelDelete(TextChannelDeleteEvent event) {
 		Guild guild = event.getGuild();
 		TextChannel tc = event.getChannel();
-		try (ResultSet guildConfig = getGuildConfig(guild.getId())) {
+		try (ResultSet guildConfig = getGuildConfig(guild)) {
 			if (guildConfig.getBoolean("Initialized")) {
 				try (ResultSet association = sql.executeQuery("SELECT * FROM `Associations` WHERE `tc` = " + tc.getId())) {
 					if (association.first()) {
-						log("WARN", "Text Channel for the Voice Channel with the ID " + association.getLong("vc")
+						logger.log("WARN", "Text Channel for the Voice Channel with the ID " + association.getLong("vc")
 								+ " was deleted... Recreating...");
 						VoiceChannel vc = guild.getVoiceChannelById(association.getLong("vc"));
 						ChannelAction<TextChannel> action = guild
@@ -318,13 +298,13 @@ public class DragoBot extends ListenerAdapter {
 						setAssociation(vc.getId(), action.complete().getId());
 					}
 				} catch (SQLException e) {
-					log("ERROR", guild.getName() + " / " + tc.getName() + "(" + guild.getId() + " / " + tc.getId() + " has no VoiceChannel!");
-					logStackTrace(e);
+					logger.log("ERROR", guild.getName() + " / " + tc.getName() + "(" + guild.getId() + " / " + tc.getId() + " has no VoiceChannel!");
+					logger.logStackTrace(e);
 				}
 			}
 		} catch (SQLException e) {
-			log("ERROR", guild.getName() + "(" + guild.getId() + ") Config couldn't be loaded!");
-			logStackTrace(e);
+			logger.log("ERROR", guild.getName() + "(" + guild.getId() + ") Config couldn't be loaded!");
+			logger.logStackTrace(e);
 		}
 	}
 
@@ -344,14 +324,14 @@ public class DragoBot extends ListenerAdapter {
 
 	public static void initialize(Guild guild) {
 		Role everyone = guild.getPublicRole();
-		try (ResultSet guildConfig = getGuildConfig(guild.getId())) {
+		try (ResultSet guildConfig = getGuildConfig(guild)) {
 			for (VoiceChannel vc : guild.getVoiceChannels()) {
-				log("INFO", "Checking VC \"" + guild.getName() + " / " + vc.getName() + "\"...");
+				logger.log("INFO", "Checking VC \"" + guild.getName() + " / " + vc.getName() + "\"...");
 				String vcID = vc.getId();
 				ResultSet association = sql.executeQuery("SELECT * FROM `Associations` WHERE `vc` = " + vcID);
 				try {
 					if ((!association.first() || guild.getTextChannelById(association.getLong("tc")) == null) && (guild.getAfkChannel() == null || !vcID.equals(guild.getAfkChannel().getId()))) {
-						log("INFO", "VC \"" + vc.getName() + "\" has no associated text-channel configured! Creating...");
+						logger.log("INFO", "VC \"" + vc.getName() + "\" has no associated text-channel configured! Creating...");
 						ChannelAction<TextChannel> action = guild.createTextChannel(guildConfig.getString("Names").replace("{vc}", vc.getName()));
 						if (vc.getParent() != null) {
 							action.setParent(vc.getParent());
@@ -362,28 +342,28 @@ public class DragoBot extends ListenerAdapter {
 						sql.executeUpdate("INSERT INTO `Associations` (`vc`, `tc`) VALUES ('" + vcID + "', '" + tc.getId() + "')");
 					}
 				} catch (SQLException e) {
-					log("ERROR", guild.getName() + " / " + vc.getName() + "(" + guild.getId() + " / " + vc.getId() + " has no association!");
-					logStackTrace(e);
+					logger.log("ERROR", guild.getName() + " / " + vc.getName() + "(" + guild.getId() + " / " + vc.getId() + " has no association!");
+					logger.logStackTrace(e);
 				}
 				
 			}
 			sql.executeUpdate("UPDATE `Settings` SET `Initialized` = '1' WHERE `GuildID` = " + guild.getId());
 		} catch (SQLException e1) {
-			log("ERROR", guild.getName() + "(" + guild.getId() + ") Config couldn't be loaded!");
-			logStackTrace(e1);
+			logger.log("ERROR", guild.getName() + "(" + guild.getId() + ") Config couldn't be loaded!");
+			logger.logStackTrace(e1);
 		}
 	}
 
 	@Override
 	public void onGuildJoin(GuildJoinEvent event) {
 		Guild guild = event.getGuild();
-		log("INFO", "Joined Guild \"" + guild.getName() + "\"! Sending setup-message...");
+		logger.log("INFO", "Joined Guild \"" + guild.getName() + "\"! Sending setup-message...");
 		register(guild);
 	}
 
 	@Override
 	public void onGuildLeave(GuildLeaveEvent event) {
-		log("INFO", "Left Guild \"" + event.getGuild().getName() + "\"! Removing Associations and config...");
+		logger.log("INFO", "Left Guild \"" + event.getGuild().getName() + "\"! Removing Associations and config...");
 		Guild guild = event.getGuild();
 		sql.executeUpdate("DELETE FROM `Settings` WHERE `GuildID` = " + guild.getId());
 		for (VoiceChannel vc : guild.getVoiceChannels()) {
@@ -391,7 +371,7 @@ public class DragoBot extends ListenerAdapter {
 		}
 	}
 
-	public static MessageEmbed getSettingsEmbed(String guild) {
+	public static MessageEmbed getSettingsEmbed(Guild guild) {
 		EmbedBuilder eb = new EmbedBuilder();
 		eb.setAuthor("DragoBot");
 		eb.setColor(0xD6F1FF);
@@ -406,14 +386,14 @@ public class DragoBot extends ListenerAdapter {
 			eb.addField("__**Name**__", "**Description:** Name used for new Text-Channels. Will replace {vc} with the name of the associated Voice-Channel.\n**Default:** `{vc}-text`\n**Value:** `" + guildConfig.getString("Names") + "`", false);
 			eb.addField("__**Description**__", "**Description:** Description used for new Text-Channels. Will replace {vc} with the name of the associated Voice-Channel.\n**Default:** `Text-Channel for everyone in the voice-channel [**{vc}**]`\n**Value:** `" + guildConfig.getString("Descriptions") + "`", false);
 		} catch (SQLException e) {
-			log("ERROR", guild + " Config couldn't be loaded!");
-			logStackTrace(e);
+			logger.log("ERROR", guild.getName() + "(" + guild.getId() + ") Config couldn't be loaded!");
+			logger.logStackTrace(e);
 			eb.setDescription( "Sorry, I'm having problems accessing my config-database! If you can, please contact Ryeera about this.");
 		}
 		return eb.build();
 	}
 
-	public static MessageEmbed getHelpEmbed(String guild) throws SQLException {
+	public static MessageEmbed getHelpEmbed(Guild guild) throws SQLException {
 		EmbedBuilder eb = new EmbedBuilder();
 		eb.setAuthor("DragoBot");
 		eb.setColor(0xD6F1FF);
@@ -421,22 +401,16 @@ public class DragoBot extends ListenerAdapter {
 		eb.setThumbnail("https://i.ibb.co/zxV32sd/reeeex16-alt.png");
 		eb.setTimestamp(Instant.now());
 		eb.setTitle("DragoBot Commands");
-		ResultSet guildConfig = getGuildConfig(guild);
-		try {
+		try (ResultSet guildConfig = getGuildConfig(guild)) {
 			String prefix = guildConfig.getString("Prefix");
 			eb.setDescription("Here are all the commands you can use:");
 			eb.addField("__**Help**__", "**Usage:** `" + prefix + "help`\n**Description:** Shows this help-message.", false);
 			eb.addField("__**Temporary VCs**__", "**Usage:** `" + prefix + "temp [name]`\n**Description:** Makes a new temporary Voice-Channel with the given name. This channel will be deleted there have no people been in it for 1 minute.", false);
 			eb.addField("__**Settings**__", "**Usage:** `" + prefix + "settings <setting> <value>`\n**Description:** View or edit the settings. Without arguments, you see the settings. This can only be done by an Admin!", false);
 		} catch (SQLException e) {
-			logStackTrace(e);
+			logger.log("ERROR", guild.getName() + "(" + guild.getId() + ") Config couldn't be loaded!");
+			logger.logStackTrace(e);
 			eb.setDescription("Sorry, I'm having problems accessing my database! If you can, please contact Ryeera about this.");
-		} finally {
-			if (guildConfig != null) {
-				try {
-					guildConfig.close();
-				} catch (SQLException e) {}
-			}
 		}
 		return eb.build();
 	}
@@ -447,7 +421,7 @@ public class DragoBot extends ListenerAdapter {
 		MessageChannel channel = event.getChannel();
 		Member sender = event.getMember();
 		String message = event.getMessage().getContentDisplay().toLowerCase();
-		try (ResultSet guildConfig = getGuildConfig(guild.getId())) {
+		try (ResultSet guildConfig = getGuildConfig(guild)) {
 			if (message.startsWith(guildConfig.getString("Prefix"))) {
 				message = message.substring(guildConfig.getString("Prefix").length());
 				if (message.startsWith("temp")) {
@@ -464,12 +438,18 @@ public class DragoBot extends ListenerAdapter {
 						});
 					}
 				} else if (message.equals("help")) {
-					channel.sendMessage(getHelpEmbed(guild.getId())).queue();
+					channel.sendMessage(getHelpEmbed(guild)).queue();
 				} else if (message.equals("fixperms")) {
 					for (VoiceChannel vc : guild.getVoiceChannels()) {
-						
+						try {
+							TextChannel tc = guild.getTextChannelById(getAssociation(vc.getId()));
+							tc.putPermissionOverride(guild.getSelfMember()).grant(readPerms).queue();
+						} catch (SQLException e) {
+							logger.log("ERROR", guild.getName() + " / " + vc.getName() + "(" + guild.getId() + " / " + vc.getId() + " has no association!");
+							logger.logStackTrace(e);
+						}
 					}
-					//TODO: Fix permissions for all assiciated text-channels.
+					channel.sendMessage("").queueAfter(10, TimeUnit.SECONDS);
 				} else if (message.startsWith("debug ")) {
 					message = message.substring(6);
 					if (message.equals("servercount")) {
@@ -491,7 +471,7 @@ public class DragoBot extends ListenerAdapter {
 						initialize(guild);
 						channel.sendMessage("Initialization complete!").queue();
 					} else if (message.equals("settings")) {
-						channel.sendMessage(getSettingsEmbed(guild.getId())).queue();
+						channel.sendMessage(getSettingsEmbed(guild)).queue();
 					} else if (message.startsWith("settings ")) {
 						message = message.substring(9);
 						if (message.equals("prefix")) {
@@ -538,8 +518,8 @@ public class DragoBot extends ListenerAdapter {
 				}
 			}
 		} catch (SQLException e) {
-			log("ERROR", guild.getName() + "(" + guild.getId() + ") Config couldn't be loaded!");
-			logStackTrace(e);
+			logger.log("ERROR", guild.getName() + "(" + guild.getId() + ") Config couldn't be loaded!");
+			logger.logStackTrace(e);
 		}
 	}
 

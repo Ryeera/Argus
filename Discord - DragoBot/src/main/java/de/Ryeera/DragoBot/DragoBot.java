@@ -119,7 +119,6 @@ public class DragoBot extends ListenerAdapter {
 				guild.loadMembers().onSuccess(m -> {
 					logger.log("INFO", "Loaded " + m.size() + " members for " + guild.getName());
 				});
-				logger.log("DEBUG", guild.getName() + guild.isLoaded());
 			}
 		} catch (LoginException | InterruptedException e) {
 			logger.logStackTrace(e);

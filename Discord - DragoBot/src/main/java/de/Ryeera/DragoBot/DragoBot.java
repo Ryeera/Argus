@@ -107,6 +107,7 @@ public class DragoBot extends ListenerAdapter {
 		logger.log("INFO", "Setting up Discord-Connection...");
 		JDABuilder builder = JDABuilder.create(GatewayIntent.GUILD_MESSAGES, GatewayIntent.GUILD_VOICE_STATES);
 		builder.enableCache(CacheFlag.MEMBER_OVERRIDES);
+		builder.disableCache(CacheFlag.ACTIVITY, CacheFlag.EMOTE, CacheFlag.CLIENT_STATUS);
 		builder.setToken(config.getString("token"));
 		builder.setActivity(Activity.watching("the VoiceChannels"));
 		builder.addEventListeners(new DragoBot());
@@ -317,9 +318,9 @@ public class DragoBot extends ListenerAdapter {
 			+ "'{vc}-text', "
 			+ "'Text-Channel for everyone in the voice-channel [**{vc}**]')");
 		TextChannel tc = guild.getTextChannels().stream().filter(c -> 
-			!guild.getPublicRole().hasPermission(c, Permission.MESSAGE_READ) && c.getName().contains("bot")).min(Comparator.naturalOrder()).orElse(guild.getDefaultChannel()
+			guild.getSelfMember().hasPermission(c, Permission.MESSAGE_WRITE) && c.getName().contains("bot")).min(Comparator.naturalOrder()).orElse(guild.getDefaultChannel()
 		);
-		tc.sendMessage("__**Thanks for inviting me!**__\n\nTo start off, run the command `d!setup`!\n**I can't do anything until you do so!**").queueAfter(5, TimeUnit.SECONDS);
+		tc.sendMessage(guild.getOwner().getAsMention() + "\n__**Thanks for inviting me!**__\n\nTo start off, run the command `d!setup`!\n**I can't do anything until you do so!**").queueAfter(5, TimeUnit.SECONDS);
 	}
 
 	public static void initialize(Guild guild) {

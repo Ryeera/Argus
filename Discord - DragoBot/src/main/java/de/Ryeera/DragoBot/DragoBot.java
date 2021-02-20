@@ -306,7 +306,7 @@ public class DragoBot extends ListenerAdapter {
 		TextChannel tc = guild.getTextChannels().stream().filter(c -> 
 			guild.getSelfMember().hasPermission(c, Permission.MESSAGE_WRITE) && c.getName().contains("bot")).min(Comparator.naturalOrder()).orElse(guild.getDefaultChannel()
 		);
-		tc.sendMessage(guild.getOwner().getAsMention() + "\n__**Thanks for inviting me!**__\n\nTo start off, run the command `d!setup`!\n**I can't do anything until you do so!**").queueAfter(5, TimeUnit.SECONDS);
+		tc.sendMessage(guild.getOwner().getAsMention() + "\n__**Thanks for inviting me!**__\n\nTo start off, give me read-permissions for all Voice-Channels that you want me to create text-channels for, and then run the command `d!setup`!\n**I can't do anything until you do so!**").queueAfter(5, TimeUnit.SECONDS);
 	}
 
 	public static void initialize(Guild guild) {
@@ -483,6 +483,7 @@ public class DragoBot extends ListenerAdapter {
 				} else if (message.equals("help")) {
 					channel.sendMessage(getHelpEmbed(guild)).queue();
 				} else if (message.equals("fixperms")) {
+					channel.sendMessage("Fixing permissions to be able to work without Admin-Permissions...").queue();
 					for (VoiceChannel vc : guild.getVoiceChannels()) {
 						try {
 							TextChannel tc = guild.getTextChannelById(getAssociation(vc.getId()));
@@ -492,7 +493,14 @@ public class DragoBot extends ListenerAdapter {
 							logger.logStackTrace(e);
 						}
 					}
-					channel.sendMessage("Your server is now up-to-date and remove my Admin-Permissions!").queueAfter(10, TimeUnit.SECONDS);
+					channel.sendMessage("Your server is now up-to-date and you can remove my Admin-Permissions! Remember to instead give me the following permissions:\n"
+							+ "- View Channels\n"
+							+ "- Manage Channels\n"
+							+ "- Manage Roles\n"
+							+ "- Send Messages\n"
+							+ "- Embed Links\n"
+							+ "- Move Members\n\n"
+							+ "If you wanna know why I need these permissions, check <https://github.com/Ryeera/dragobot>!").queueAfter(10, TimeUnit.SECONDS);
 				} else if (message.equals("resync")) {
 					channel.sendMessage("Manually resyncing this server...").queue();
 					resync(guild);

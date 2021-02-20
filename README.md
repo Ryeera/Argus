@@ -12,7 +12,7 @@ And if that wasn't enough yet, I can also create temporary voice-channels with j
 You can add my to your Discord-Server by clicking [here](https://discord.com/api/oauth2/authorize?client_id=655496558095237130&permissions=285232144&scope=bot)
 
 ## Setup
-When you invite me to your server, I will send a message, which explains anything. Have any non-public channel containing the word "bot" ready for me and I will find it.
+When you invite me to your server, I will send a message, which explains anything. Have any public channel containing the word "bot" ready for me and I will find it.
 
 ## Commands
 Simply say `d!help` in any channel I can see and I will tell you everything!

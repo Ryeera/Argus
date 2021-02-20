@@ -46,6 +46,7 @@ import net.dv8tion.jda.api.events.message.guild.GuildMessageReceivedEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.requests.GatewayIntent;
 import net.dv8tion.jda.api.requests.restaction.ChannelAction;
+import net.dv8tion.jda.api.utils.MemberCachePolicy;
 import net.dv8tion.jda.api.utils.cache.CacheFlag;
 
 public class DragoBot extends ListenerAdapter {
@@ -104,26 +105,37 @@ public class DragoBot extends ListenerAdapter {
 				+ "COMMENT = 'Contains all current temporary voice channels';");
 
 		logger.log("INFO", "Setting up Discord-Connection...");
-		JDABuilder builder = JDABuilder.create(GatewayIntent.GUILD_MESSAGES, GatewayIntent.GUILD_VOICE_STATES);
+		JDABuilder builder = JDABuilder.create(GatewayIntent.GUILD_MESSAGES, GatewayIntent.GUILD_VOICE_STATES, GatewayIntent.GUILD_MEMBERS);
 		builder.enableCache(CacheFlag.MEMBER_OVERRIDES);
 		builder.disableCache(CacheFlag.ACTIVITY, CacheFlag.EMOTE, CacheFlag.CLIENT_STATUS);
 		builder.setToken(config.getString("token"));
 		builder.setActivity(Activity.watching("the VoiceChannels"));
+		builder.setMemberCachePolicy(MemberCachePolicy.ALL);
 		builder.addEventListeners(new DragoBot());
 		try {
 			jda = builder.build();
 			jda.awaitReady();
+			for (Guild guild : jda.getGuilds()) {
+				guild.loadMembers().onSuccess(m -> {
+					logger.log("INFO", "Loaded " + m.size() + " members for " + guild.getName());
+				});
+				logger.log("DEBUG", guild.getName() + guild.isLoaded());
+			}
 		} catch (LoginException | InterruptedException e) {
 			logger.logStackTrace(e);
 			System.exit(1);
 		}
-
-		logger.log("INFO", "Checking associations after startup...");
+		
 		Executors.newScheduledThreadPool(1).scheduleAtFixedRate(() -> {
+			logger.log("INFO", "Resyncing...");
 			for (Guild guild : jda.getGuilds()) {
-				resync(guild);
+				try {
+					resync(guild);
+				} catch (Exception e) {
+					logger.logStackTrace(e);
+				}
 			}
-		}, 0, 60, TimeUnit.MINUTES);
+		}, 1, 60, TimeUnit.MINUTES);
 		logger.log("INFO", "Bot started!");
 	}
 
@@ -341,10 +353,14 @@ public class DragoBot extends ListenerAdapter {
 			logger.log("ERROR", guild.getName() + "(" + guild.getId() + ") Config couldn't be loaded!");
 		}
 		for (VoiceChannel vc : guild.getVoiceChannels()) {
+			if (guild.getAfkChannel() != null && vc.equals(guild.getAfkChannel())) continue;
 			try {
 				TextChannel tc = guild.getTextChannelById(getAssociation(vc.getId()));
 				for (PermissionOverride perm : tc.getMemberPermissionOverrides()) {
-					if (!perm.getMember().equals(guild.getSelfMember()) && !vc.getMembers().contains(perm.getMember())) {
+					Member self = guild.getSelfMember();
+					Member permmember = perm.getMember();
+					List<Member> members = vc.getMembers();
+					if (!permmember.equals(self) && !members.contains(permmember)) {
 						perm.delete().queue();
 					}
 				}

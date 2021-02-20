@@ -506,7 +506,7 @@ public class DragoBot extends ListenerAdapter {
 					message = message.substring(10);
 					for (Guild g : jda.getGuilds()) {
 						TextChannel tc = g.getTextChannels().stream().filter(c -> 
-							!g.getPublicRole().hasPermission(c, Permission.MESSAGE_READ) && c.getName().contains("bot")).min(Comparator.naturalOrder()).orElse(g.getDefaultChannel()
+							!g.getSelfMember().hasPermission(c, Permission.MESSAGE_WRITE) && c.getName().contains("bot")).min(Comparator.naturalOrder()).orElse(g.getDefaultChannel()
 						);
 						tc.sendMessage(message).queue();
 					}

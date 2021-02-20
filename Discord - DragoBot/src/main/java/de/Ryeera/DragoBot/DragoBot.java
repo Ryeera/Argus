@@ -120,36 +120,12 @@ public class DragoBot extends ListenerAdapter {
 		}
 
 		logger.log("INFO", "Checking associations after startup...");
-		for (Guild guild : jda.getGuilds()) {
-			try (ResultSet guildConfig = getGuildConfig(guild)) {
-				if (!guildConfig.first()) {
-					register(guild);
-				} else if (guildConfig.getBoolean("Initialized")) {
-					initialize(guild);
-				}
-			} catch (SQLException e) {
-				logger.logStackTrace(e);
-				logger.log("ERROR", guild.getName() + "(" + guild.getId() + ") Config couldn't be loaded!");
-			}
-		}
-		logger.log("INFO", "Bot started!");
 		Executors.newScheduledThreadPool(1).scheduleAtFixedRate(() -> {
 			for (Guild guild : jda.getGuilds()) {
-				for (VoiceChannel vc : guild.getVoiceChannels()) {
-					TextChannel tc = guild.getTextChannelById(vc.getId());
-					for (PermissionOverride perm : tc.getMemberPermissionOverrides()) {
-						if (!vc.getMembers().contains(perm.getMember())) {
-							perm.delete().queue();
-						}
-					}
-					for (Member member : vc.getMembers()) {
-						if (!tc.canTalk(member)) {
-							tc.putPermissionOverride(member).grant(readPerms).queue();
-						}
-					}
-				}
+				resync(guild);
 			}
 		}, 0, 60, TimeUnit.MINUTES);
+		logger.log("INFO", "Bot started!");
 	}
 
 	public static ResultSet getGuildConfig(Guild guild) throws SQLException {
@@ -324,7 +300,6 @@ public class DragoBot extends ListenerAdapter {
 	}
 
 	public static void initialize(Guild guild) {
-		Role everyone = guild.getPublicRole();
 		try (ResultSet guildConfig = getGuildConfig(guild)) {
 			for (VoiceChannel vc : guild.getVoiceChannels()) {
 				logger.log("INFO", "Checking VC \"" + guild.getName() + " / " + vc.getName() + "\"...");
@@ -338,7 +313,7 @@ public class DragoBot extends ListenerAdapter {
 							action.setParent(vc.getParent());
 						}
 						action.setTopic(guildConfig.getString("Descriptions").replace("{vc}", vc.getName()));
-						action.addPermissionOverride(everyone, null, readPerms);
+						action.addPermissionOverride(guild.getPublicRole(), null, readPerms);
 						TextChannel tc = action.complete();
 						sql.executeUpdate("INSERT INTO `Associations` (`vc`, `tc`) VALUES ('" + vcID + "', '" + tc.getId() + "')");
 					}
@@ -352,6 +327,32 @@ public class DragoBot extends ListenerAdapter {
 		} catch (SQLException e1) {
 			logger.log("ERROR", guild.getName() + "(" + guild.getId() + ") Config couldn't be loaded!");
 			logger.logStackTrace(e1);
+		}
+	}
+	
+	public static void resync(Guild guild) {
+		try (ResultSet guildConfig = getGuildConfig(guild)) {
+			if (!guildConfig.first()) {
+				register(guild);
+			} else if (guildConfig.getBoolean("Initialized")) {
+				initialize(guild);
+			}
+		} catch (SQLException e) {
+			logger.logStackTrace(e);
+			logger.log("ERROR", guild.getName() + "(" + guild.getId() + ") Config couldn't be loaded!");
+		}
+		for (VoiceChannel vc : guild.getVoiceChannels()) {
+			TextChannel tc = guild.getTextChannelById(vc.getId());
+			for (PermissionOverride perm : tc.getMemberPermissionOverrides()) {
+				if (!vc.getMembers().contains(perm.getMember())) {
+					perm.delete().queue();
+				}
+			}
+			for (Member member : vc.getMembers()) {
+				if (!tc.canTalk(member)) {
+					tc.putPermissionOverride(member).grant(readPerms).queue();
+				}
+			}
 		}
 	}
 
@@ -408,6 +409,7 @@ public class DragoBot extends ListenerAdapter {
 			eb.addField("__**Help**__", "**Usage:** `" + prefix + "help`\n**Description:** Shows this help-message.", false);
 			eb.addField("__**Temporary VCs**__", "**Usage:** `" + prefix + "temp [name]`\n**Description:** Makes a new temporary Voice-Channel with the given name. This channel will be deleted there have no people been in it for 1 minute.", false);
 			eb.addField("__**Settings**__", "**Usage:** `" + prefix + "settings <setting> <value>`\n**Description:** View or edit the settings. Without arguments, you see the settings. This can only be done by an Admin!", false);
+			eb.addField("__**Manual Resync**__", "**Usage** `" + prefix + "resync`\n**Description:** Manually resync this server. This will check all voice-channels for if they have a text-channel as well as check all permission-overrides for if they are up-to-date. This happens automatically every hour.", false);
 		} catch (SQLException e) {
 			logger.log("ERROR", guild.getName() + "(" + guild.getId() + ") Config couldn't be loaded!");
 			logger.logStackTrace(e);
@@ -451,6 +453,10 @@ public class DragoBot extends ListenerAdapter {
 						}
 					}
 					channel.sendMessage("Your server is now up-to-date and remove my Admin-Permissions!").queueAfter(10, TimeUnit.SECONDS);
+				} else if (message.equals("resync")) {
+					channel.sendMessage("Manually resyncing this server...").queue();
+					resync(guild);
+					channel.sendMessage("Done syncing!").queueAfter(5, TimeUnit.SECONDS);
 				} else if (message.startsWith("debug ")) {
 					message = message.substring(6);
 					if (message.equals("servercount")) {

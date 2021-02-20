@@ -34,7 +34,6 @@ import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.MessageChannel;
 import net.dv8tion.jda.api.entities.MessageEmbed;
 import net.dv8tion.jda.api.entities.PermissionOverride;
-import net.dv8tion.jda.api.entities.Role;
 import net.dv8tion.jda.api.entities.TextChannel;
 import net.dv8tion.jda.api.entities.VoiceChannel;
 import net.dv8tion.jda.api.events.channel.text.TextChannelDeleteEvent;
@@ -222,10 +221,10 @@ public class DragoBot extends ListenerAdapter {
 		try (ResultSet guildConfig = getGuildConfig(guild)) {
 			if (guildConfig.getBoolean("Initialized")) {
 				logger.log("INFO", "VC \"" + vc.getName() + "\" created! Creating text-channel...");
-				ChannelAction<TextChannel> action = guild
-						.createTextChannel(guildConfig.getString("Names").replace("{vc}", vc.getName()));
-				if (vc.getParent() != null)
+				ChannelAction<TextChannel> action = guild.createTextChannel(guildConfig.getString("Names").replace("{vc}", vc.getName()));
+				if (vc.getParent() != null) {
 					action.setParent(vc.getParent());
+				}
 				action.setTopic(guildConfig.getString("Descriptions").replace("{vc}", vc.getName()));
 				action.addPermissionOverride(guild.getSelfMember(), readPerms, null);
 				action.addPermissionOverride(guild.getPublicRole(), null, readPerms);
@@ -342,15 +341,41 @@ public class DragoBot extends ListenerAdapter {
 			logger.log("ERROR", guild.getName() + "(" + guild.getId() + ") Config couldn't be loaded!");
 		}
 		for (VoiceChannel vc : guild.getVoiceChannels()) {
-			TextChannel tc = guild.getTextChannelById(vc.getId());
-			for (PermissionOverride perm : tc.getMemberPermissionOverrides()) {
-				if (!vc.getMembers().contains(perm.getMember())) {
-					perm.delete().queue();
+			try {
+				TextChannel tc = guild.getTextChannelById(getAssociation(vc.getId()));
+				for (PermissionOverride perm : tc.getMemberPermissionOverrides()) {
+					if (!perm.getMember().equals(guild.getSelfMember()) && !vc.getMembers().contains(perm.getMember())) {
+						perm.delete().queue();
+					}
 				}
-			}
-			for (Member member : vc.getMembers()) {
-				if (!tc.canTalk(member)) {
-					tc.putPermissionOverride(member).grant(readPerms).queue();
+				for (Member member : vc.getMembers()) {
+					if (!tc.canTalk(member)) {
+						tc.putPermissionOverride(member).grant(readPerms).queue();
+					}
+				}
+			} catch (SQLException e) {
+				try (ResultSet guildConfig = getGuildConfig(guild)) {
+					if (guildConfig.getBoolean("Initialized")) {
+						logger.log("INFO", "VC \"" + vc.getName() + "\" doesn't have an association while resyncing! Creating text-channel...");
+						ChannelAction<TextChannel> action = guild.createTextChannel(guildConfig.getString("Names").replace("{vc}", vc.getName()));
+						if (vc.getParent() != null) {
+							action.setParent(vc.getParent());
+						}
+						action.setTopic(guildConfig.getString("Descriptions").replace("{vc}", vc.getName()));
+						action.addPermissionOverride(guild.getSelfMember(), readPerms, null);
+						action.addPermissionOverride(guild.getPublicRole(), null, readPerms);
+						action.queue(tc -> {
+							setAssociation(vc.getId(), tc.getId());
+							for (Member member : vc.getMembers()) {
+								if (!tc.canTalk(member)) {
+									tc.putPermissionOverride(member).grant(readPerms).queue();
+								}
+							}
+						});
+					}
+				} catch (SQLException ex) {
+					logger.log("ERROR", guild.getName() + "(" + guild.getId() + ") Config couldn't be loaded!");
+					logger.logStackTrace(ex);
 				}
 			}
 		}
@@ -456,7 +481,7 @@ public class DragoBot extends ListenerAdapter {
 				} else if (message.equals("resync")) {
 					channel.sendMessage("Manually resyncing this server...").queue();
 					resync(guild);
-					channel.sendMessage("Done syncing!").queueAfter(5, TimeUnit.SECONDS);
+					channel.sendMessage("Done resyncing!").queueAfter(5, TimeUnit.SECONDS);
 				} else if (message.startsWith("debug ")) {
 					message = message.substring(6);
 					if (message.equals("servercount")) {

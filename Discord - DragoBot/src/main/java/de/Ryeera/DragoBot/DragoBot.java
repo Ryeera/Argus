@@ -508,7 +508,7 @@ public class DragoBot extends ListenerAdapter {
 						TextChannel tc = g.getTextChannels().stream().filter(c -> 
 							!g.getSelfMember().hasPermission(c, Permission.MESSAGE_WRITE) && c.getName().contains("bot")).min(Comparator.naturalOrder()).orElse(g.getDefaultChannel()
 						);
-						tc.sendMessage(message).queue();
+						tc.sendMessage(message.replace("[OWNER]", g.getOwner().getAsMention())).queue();
 					}
 				} else if (sender.hasPermission(Permission.ADMINISTRATOR)) {
 					if (message.equals("setup") && !guildConfig.getBoolean("Initialized")) {

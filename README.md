@@ -1,6 +1,6 @@
-# DragoBot
-Hi there, I am DragoBot!
-I am here to make your server a lot more organized when it comes to voice-channels!  
+# Argus
+Hi there, I am Argus!
+I am here to keep a close eye on your voice-channels!  
 
 When you add me to your server, I will add a text-channel for each voice-channel, where people can chat about stuff in said voice-channel. You know, for all those YouTube-links, images, memes and so on talked about in the conversation.  
 
@@ -12,23 +12,31 @@ And if that wasn't enough yet, I can also create temporary voice-channels with j
 You can add me to your Discord-Server by clicking [here](https://discord.com/api/oauth2/authorize?client_id=655496558095237130&permissions=285232144&scope=bot)
 
 ## Setup
-When you invite me to your server, I will send a message, which explains anything. Have any public channel containing the word "bot" ready for me and I will find it.
+When you invite me to your server, I will make a new channel, which only admins can see, and explain everything there. Don't worry, you can delete it when we're done.
 
 ## Commands
-Simply say `d!help` in any channel I can see and I will tell you everything!
+All commands need to be preceded with the prefix you set. If you haven't set one, the default prefix is `a!`.
+
+`a!help` - shows a help-embed with all commands.
+
+`a!temp [name]` - creates a temporary VC with the given name.
+
+`a!settings` - Shows the current settings and tells you how to change them.
+
+`a!resync` - manually resyncs your server. Use this if you notice that someone is missing their permissions to see the text-channel they should see.
 
 ## FAQ
-**Why does DragoBot need the Manage Roles permission?**  
+**Why does Argus need the Manage Roles permission?**  
 Manage Roles allows me to change permission-overrides in Text-Channels. I won't change anything in your role-system, and if you don't trust me, you can move my role all the way to the bottom, I'll still do my thing but I can't change any roles above mine ^^
 
-**Why does DragoBot need the Manage Channels permission?**  
+**Why does Argus need the Manage Channels permission?**  
 I need this role to create temporary voice-channels.
 
-**Why does DragoBot need the Move Members perimission?**  
+**Why does Argus need the Move Members perimission?**  
 Although this feature is not implemented yet, I will be able to move members into their temporary voice-channel if they create one while connected to another voice-channel.
 
-**Why does DragoBot not work with some channels?**  
-You need to make sure that I have access to the category and/or channel in question. If you, for example, made an mod-channel, that only mods can access, I won't have access to that at first. You need to manually add another permission-override to let me access the channel. For that, I have my own role called "DragoBot"! After you did that, you either wait for the server-resync that happens every hour, or you execute `d!resync`.
+**Why does Argus not work with some channels?**  
+If that happens, please join my Discord-Server below, so Ryeera can help you. It shouldn't happen, but if it does, please tell him.
 
 ## Support
 If you have any feature-requests, bug-reports or change-requests, feel free to drop by at my [Discord-Server](https://discord.gg/ffrArfErfH)!

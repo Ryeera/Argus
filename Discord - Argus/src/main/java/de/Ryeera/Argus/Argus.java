@@ -509,7 +509,14 @@ public class Argus extends ListenerAdapter {
 				} else if (message.startsWith("broadcast ") && sender.getId().equals("553576678186680340")) {
 					message = message.substring(10);
 					for (Guild g : jda.getGuilds()) {
-						final String mes = message.replace("[OWNER]", g.getOwner().getAsMention());
+						String prefix = "a!";
+						try (ResultSet conf = getGuildConfig(g)) {
+							prefix = conf.getString("Prefix");
+						} catch (SQLException e) {
+							logger.log("ERROR", g.getName() + "(" + g.getId() + ") Config couldn't be loaded!");
+							logger.logStackTrace(e);
+						}
+						final String mes = message.replace("[OWNER]", g.getOwner().getAsMention()).replace("[PREFIX]", prefix);
 						g.createTextChannel("argus").addPermissionOverride(g.getBotRole(), readPerms, null).addPermissionOverride(g.getPublicRole(), null, readPerms).queue(tc -> {
 							tc.sendMessage(mes).queue(m -> {
 								tc.sendMessage("You can delete this channel when you're done!").queue();

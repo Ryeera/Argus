@@ -481,10 +481,11 @@ public class Argus extends ListenerAdapter {
 				} else if (message.equalsIgnoreCase("fixperms")) {
 					channel.sendMessage("Fixing permissions to be able to work without Admin-Permissions...").queue();
 					for (VoiceChannel vc : guild.getVoiceChannels()) {
+						if (vc.getId().equals(guild.getAfkChannel().getId())) continue;
 						try {
 							TextChannel tc = guild.getTextChannelById(getAssociation(vc.getId()));
 							tc.putPermissionOverride(guild.getBotRole()).grant(readPerms).queue();
-						} catch (SQLException e) {
+						} catch (Exception e) {
 							logger.log("ERROR", guild.getName() + " / " + vc.getName() + "(" + guild.getId() + " / " + vc.getId() + " has no association!");
 							logger.logStackTrace(e);
 						}

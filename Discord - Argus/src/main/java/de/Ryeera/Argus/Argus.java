@@ -88,7 +88,7 @@ public class Argus extends ListenerAdapter {
 				+ "`GuildID` BIGINT UNSIGNED NOT NULL , "
 				+ "`Initialized` BOOLEAN NOT NULL DEFAULT FALSE , " 
 				+ "`Logging` BOOLEAN NOT NULL DEFAULT FALSE , "
-				+ "`Prefix` VARCHAR(16) CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL DEFAULT 'a!' , "
+				+ "`Prefix` VARCHAR(32) CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL DEFAULT 'a!' , "
 				+ "`Names` VARCHAR(100) CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL DEFAULT '{vc}-text' , "
 				+ "`Descriptions` VARCHAR(1024) CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL DEFAULT 'Text-Channel for everyone in the voice-channel [**{vc}**]' , "
 				+ "PRIMARY KEY (`GuildID`)) " 
@@ -459,10 +459,10 @@ public class Argus extends ListenerAdapter {
 		Guild guild = event.getGuild();
 		MessageChannel channel = event.getChannel();
 		Member sender = event.getMember();
-		String message = event.getMessage().getContentDisplay();
+		String message = event.getMessage().getContentRaw();
 		try (ResultSet guildConfig = getGuildConfig(guild)) {
 			if (message.startsWith(guildConfig.getString("Prefix"))) {
-				message = message.substring(guildConfig.getString("Prefix").length());
+				message = message.substring(guildConfig.getString("Prefix").length()).trim();
 				if (message.startsWith("temp")) {
 					final String name = message.substring(5);
 					if (guild.getCategoriesByName("Temp", true).size() > 0) {

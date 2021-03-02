@@ -481,7 +481,7 @@ public class Argus extends ListenerAdapter {
 				} else if (message.equalsIgnoreCase("fixperms")) {
 					channel.sendMessage("Fixing permissions to be able to work without Admin-Permissions...").queue();
 					for (VoiceChannel vc : guild.getVoiceChannels()) {
-						if (vc.getId().equals(guild.getAfkChannel().getId())) continue;
+						if (guild.getAfkChannel() != null && vc.getId().equals(guild.getAfkChannel().getId())) continue;
 						try {
 							TextChannel tc = guild.getTextChannelById(getAssociation(vc.getId()));
 							tc.putPermissionOverride(guild.getBotRole()).grant(readPerms).queue();

@@ -43,6 +43,7 @@ If you have any feature-requests, bug-reports or change-requests, feel free to d
 
 ## Planned Features
 - Private Voice-Channels
+- Command to make it so a voice-channel doesn't have an associated text-channel anymore
 - More Options
   - Instead of assigning permissions to an existing text-channel, create a new text-channel (more organized for admins)
   - Format Logging

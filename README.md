@@ -6,7 +6,7 @@ When you add me to your server, I will add a text-channel for each voice-channel
 
 But here comes the catch: These text-channels are invisible until you actually join the voice-channel! This has the upside, that nobody can see or write in the text-channel, unless they are in the corresponding voice-channel (or unless you're an admin, sorry I can't do anything about that ^^").  
 
-And if that wasn't enough yet, I can also create temporary voice-channels with just one command!
+And if that wasn't enough yet, I can also create temporary voice-channels with just one command and optionally log the joins and leaves!
 
 ## Add me!
 You can add me to your Discord-Server by clicking [here](https://discord.com/api/oauth2/authorize?client_id=655496558095237130&permissions=285232144&scope=bot)

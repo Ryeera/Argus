@@ -418,8 +418,8 @@ public class Argus extends ListenerAdapter {
 		eb.setTimestamp(Instant.now());
 		eb.setTitle("Argus Settings");
 		try (ResultSet guildConfig = getGuildConfig(guild)) {
-			eb.setDescription("I am currently using the following settings.\nYou can change the settings with `" + guildConfig.getString("Prefix") + "settings [setting] [value]`");
-			eb.addField("__**Prefix**__", "**Description:** The Prefix used for Commands.\n**Default:** `a!`\n**Value:** `" + guildConfig.getString("Prefix") + "`", false);
+			eb.setDescription("I am currently using the following settings.\nYou can change the settings with `" + guildConfig.getString("Prefix").replace("<@!655496558095237130>", "@Argus ") + "settings [setting] [value]`");
+			eb.addField("__**Prefix**__", "**Description:** The Prefix used for Commands.\n**Default:** `a!`\n**Value:** `" + guildConfig.getString("Prefix").replace("<@!655496558095237130>", "@Argus ") + "`", false);
 			eb.addField("__**Logging**__", "**Description:** Whether the bot logs each connect- and disconnect-event to the associated Text-Channel.\n**Default:** `false`\n**Value:** `" + String.valueOf(guildConfig.getBoolean("Logging")) + "`", false);
 			eb.addField("__**Name**__", "**Description:** Name used for new Text-Channels. Will replace {vc} with the name of the associated Voice-Channel.\n**Default:** `{vc}-text`\n**Value:** `" + guildConfig.getString("Names") + "`", false);
 			eb.addField("__**Description**__", "**Description:** Description used for new Text-Channels. Will replace {vc} with the name of the associated Voice-Channel.\n**Default:** `Text-Channel for everyone in the voice-channel [**{vc}**]`\n**Value:** `" + guildConfig.getString("Descriptions") + "`", false);
@@ -440,10 +440,10 @@ public class Argus extends ListenerAdapter {
 		eb.setTimestamp(Instant.now());
 		eb.setTitle("Argus Commands");
 		try (ResultSet guildConfig = getGuildConfig(guild)) {
-			String prefix = guildConfig.getString("Prefix");
+			String prefix = guildConfig.getString("Prefix").replace("<@!655496558095237130>", "@Argus ");
 			eb.setDescription("Here are all the commands you can use:");
 			eb.addField("__**Help**__", "**Usage:** `" + prefix + "help`\n**Description:** Shows this help-message.", false);
-			eb.addField("__**Temporary VCs**__", "**Usage:** `" + prefix + "temp [name]`\n**Description:** Makes a new temporary Voice-Channel with the given name. This channel will be deleted there have no people been in it for 1 minute.", false);
+			eb.addField("__**Temporary VCs**__", "**Usage:** `" + prefix + "temp [name]`\n**Description:** Makes a new temporary Voice-Channel with the given name. This channel will be deleted, once there have been no people in it for 1 minute.", false);
 			eb.addField("__**Settings**__", "**Usage:** `" + prefix + "settings <setting> <value>`\n**Description:** View or edit the settings. Without arguments, you see the settings. This can only be done by an Admin!", false);
 			eb.addField("__**Manual Resync**__", "**Usage** `" + prefix + "resync`\n**Description:** Manually resync this server. This will check all voice-channels for if they have a text-channel as well as check all permission-overrides for if they are up-to-date. This happens automatically every hour.", false);
 		} catch (SQLException e) {
@@ -512,7 +512,7 @@ public class Argus extends ListenerAdapter {
 					for (Guild g : jda.getGuilds()) {
 						String prefix = "a!";
 						try (ResultSet conf = getGuildConfig(g)) {
-							prefix = conf.getString("Prefix");
+							prefix = conf.getString("Prefix").replace("<@!655496558095237130>", "@Argus ");
 						} catch (SQLException e) {
 							logger.log("ERROR", g.getName() + "(" + g.getId() + ") Config couldn't be loaded!");
 							logger.logStackTrace(e);
@@ -537,17 +537,17 @@ public class Argus extends ListenerAdapter {
 					} else if (message.startsWith("settings ")) {
 						message = message.substring(9);
 						if (message.equalsIgnoreCase("prefix")) {
-							channel.sendMessage("My prefix in this server is `" + guildConfig.getString("Prefix") + "`. You can change it with `" + guildConfig.getString("Prefix") + "settings prefix [new prefix]`.").queue();
+							channel.sendMessage("My prefix in this server is `" + guildConfig.getString("Prefix").replace("<@!655496558095237130>", "@Argus ") + "`. You can change it with `" + guildConfig.getString("Prefix").replace("<@!655496558095237130>", "@Argus ") + "settings prefix [new prefix]`.").queue();
 						} else if (message.equalsIgnoreCase("logging")) {
-							channel.sendMessage("Logging is currently `" + (guildConfig.getBoolean("Logging") ? "en" : "dis") + "abled`. You can " + (guildConfig.getBoolean("Logging") ? "dis" : "en") + "able it with `" + guildConfig.getString("Prefix") + "settings logging " + (guildConfig.getBoolean("Logging") ? "dis" : "en") + "able`.").queue();
+							channel.sendMessage("Logging is currently `" + (guildConfig.getBoolean("Logging") ? "en" : "dis") + "abled`. You can " + (guildConfig.getBoolean("Logging") ? "dis" : "en") + "able it with `" + guildConfig.getString("Prefix").replace("<@!655496558095237130>", "@Argus ") + "settings logging " + (guildConfig.getBoolean("Logging") ? "dis" : "en") + "able`.").queue();
 						} else if (message.equalsIgnoreCase("name")) {
-							channel.sendMessage("The name for new text-channels is currently `" + guildConfig.getString("Names") + "`. You can change it with `" + guildConfig.getString("Prefix") + "settings name [new name]`.").queue();
+							channel.sendMessage("The name for new text-channels is currently `" + guildConfig.getString("Names") + "`. You can change it with `" + guildConfig.getString("Prefix").replace("<@!655496558095237130>", "@Argus ") + "settings name [new name]`.").queue();
 						} else if (message.equalsIgnoreCase("description")) {
-							channel.sendMessage("The description for new text-channels is currently `" + guildConfig.getString("Descriptions") + "`. You can change it with `" + guildConfig.getString("Prefix") + "settings description [new description]`.").queue();
+							channel.sendMessage("The description for new text-channels is currently `" + guildConfig.getString("Descriptions") + "`. You can change it with `" + guildConfig.getString("Prefix").replace("<@!655496558095237130>", "@Argus ") + "settings description [new description]`.").queue();
 						} else if (message.startsWith("prefix ")) {
 							message = message.substring(7);
 							sql.executeUpdate("UPDATE `Settings` SET `Prefix` = '" + message + "' WHERE `GuildID` = " + guild.getId());
-							channel.sendMessage("Prefix set to `" + message + "`.").queue();
+							channel.sendMessage("Prefix set to `" + message.replace("<@!655496558095237130>", "@Argus ") + "`.").queue();
 						} else if (message.startsWith("logging ")) {
 							message = message.substring(8);
 							if (message.equalsIgnoreCase("enable") || message.equalsIgnoreCase("enabled") || message.equalsIgnoreCase("true")) {

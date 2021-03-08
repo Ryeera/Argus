@@ -50,7 +50,7 @@ import net.dv8tion.jda.api.utils.cache.CacheFlag;
 
 public class Argus extends ListenerAdapter {
 
-	private static final String VERSION = "1.0.0";
+	private static final String VERSION = "1.0.1";
 
 	private static DragoLogger logger;
 
@@ -126,19 +126,12 @@ public class Argus extends ListenerAdapter {
 		
 		Executors.newScheduledThreadPool(1).scheduleAtFixedRate(() -> {
 			logger.log("INFO", "Resyncing...");
-			List<Guild> admins = new ArrayList<>();
 			for (Guild guild : jda.getGuilds()) {
 				try {
 					resync(guild);
 				} catch (Exception e) {
 					logger.logStackTrace(e);
 				}
-				if (guild.getBotRole().hasPermission(Permission.ADMINISTRATOR)) {
-					admins.add(guild);
-				}
-			}
-			for (Guild guild : admins) {
-				logger.log("WARN", guild.getName() + " still gives me admin-permissions!");
 			}
 		}, 1, 60, TimeUnit.MINUTES);
 		logger.log("INFO", "Argus started! I'm watching...");

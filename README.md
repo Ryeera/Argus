@@ -48,3 +48,4 @@ If you have any feature-requests, bug-reports or change-requests, feel free to d
   - Instead of assigning permissions to an existing text-channel, create a new text-channel (more organized for admins)
   - Format Logging
   - Create Master-text-channel for copying permissions (for example so that mods can always see the text-channels)
+- Support for bots like Server Stats that use voice-channels in a way that means that Argus shouldn't create a text-channel for them.

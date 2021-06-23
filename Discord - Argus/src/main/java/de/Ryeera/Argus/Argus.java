@@ -569,7 +569,7 @@ public class Argus extends ListenerAdapter {
 								channel.sendMessage("The maximum length for a channel-description is 1024 characters! Your description was " + message.length() + " characters long.").queue();
 							} else {
 								sql.executeUpdate("UPDATE `Settings` SET `Descriptions` = '" + message + "' WHERE `GuildID` = " + guild.getId());
-								channel.sendMessage("Name for new Text-Channels set to `" + message + "`.").queue();
+								channel.sendMessage("Description for new Text-Channels set to `" + message + "`.").queue();
 							}
 						}
 					}

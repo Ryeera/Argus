@@ -91,6 +91,7 @@ public class Argus extends ListenerAdapter {
 				+ "`Prefix` VARCHAR(32) CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL DEFAULT 'a!' , "
 				+ "`Names` VARCHAR(100) CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL DEFAULT '{vc}-text' , "
 				+ "`Descriptions` VARCHAR(1024) CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL DEFAULT 'Text-Channel for everyone in the voice-channel [**{vc}**]' , "
+				+ "`CategoryID` BIGINT(18) UNSIGNED NOT NULL DEFAULT '0' , "
 				+ "PRIMARY KEY (`GuildID`)) " 
 				+ "COMMENT = 'Contains all Settings for Argus';");
 		sql.executeUpdate("CREATE TABLE IF NOT EXISTS `Associations` ( " 
@@ -287,13 +288,14 @@ public class Argus extends ListenerAdapter {
 	}
 
 	public static void register(Guild guild) {
-		sql.executeUpdate("INSERT INTO `Settings` (`GuildID`, `Initialized`, `Logging`, `Prefix`, `Names`, `Descriptions`) VALUES ("
+		sql.executeUpdate("INSERT INTO `Settings` (`GuildID`, `Initialized`, `Logging`, `Prefix`, `Names`, `Descriptions`, `CategoryID`) VALUES ("
 			+ "'" + guild.getId() + "', "
 			+ "'0', "
 			+ "'0', "
 			+ "'a!', "
 			+ "'{vc}-text', "
-			+ "'Text-Channel for everyone in the voice-channel [**{vc}**]')");
+			+ "'Text-Channel for everyone in the voice-channel [**{vc}**]' , "
+			+ "'0')");
 		guild.createTextChannel("argus").addPermissionOverride(guild.getBotRole(), readPerms, null).addPermissionOverride(guild.getPublicRole(), null, readPerms).queue(tc -> {
 			tc.sendMessage(guild.getOwner().getAsMention() + "\n__**Thanks for inviting me!**__\n\nTo start off, run the command `a!setup`!\n**I can't do anything until you do so!**").queueAfter(5, TimeUnit.SECONDS);
 		});
@@ -458,12 +460,13 @@ public class Argus extends ListenerAdapter {
 				message = message.substring(guildConfig.getString("Prefix").length()).trim();
 				if (message.startsWith("temp")) {
 					final String name = message.substring(5);
-					if (guild.getCategoriesByName("Temp", true).size() > 0) {
-						guild.getCategoriesByName("Temp", true).get(0).createVoiceChannel(name).queue(v -> {
+					if (guild.getCategoryById(guildConfig.getString("CategoryID")) != null) {
+						guild.getCategoryById(guildConfig.getString("CategoryID")).createVoiceChannel(name).queue(v -> {
 							addTemporaryVC(v.getId());
 						});
 					} else {
-						guild.createCategory("Temp").queue(c -> {
+						guild.createCategory("Temp Channels").queue(c -> {
+							sql.executeUpdate("UPDATE `Settings` SET `CategoryID` = '" + c.getIdLong() + "' WHERE `GuildID` = " + guild.getId());
 							c.createVoiceChannel(name).queue(v -> {
 								addTemporaryVC(v.getId());
 							});

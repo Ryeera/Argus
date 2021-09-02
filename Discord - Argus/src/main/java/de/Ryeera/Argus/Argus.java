@@ -42,15 +42,15 @@ import net.dv8tion.jda.api.events.guild.GuildJoinEvent;
 import net.dv8tion.jda.api.events.guild.GuildLeaveEvent;
 import net.dv8tion.jda.api.events.guild.voice.GuildVoiceUpdateEvent;
 import net.dv8tion.jda.api.events.message.guild.GuildMessageReceivedEvent;
+import net.dv8tion.jda.api.exceptions.InsufficientPermissionException;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.requests.GatewayIntent;
 import net.dv8tion.jda.api.requests.restaction.ChannelAction;
-import net.dv8tion.jda.api.utils.MemberCachePolicy;
 import net.dv8tion.jda.api.utils.cache.CacheFlag;
 
 public class Argus extends ListenerAdapter {
 
-	private static final String VERSION = "1.0.1";
+	private static final String VERSION = "1.1.0";
 
 	private static DragoLogger logger;
 
@@ -59,6 +59,7 @@ public class Argus extends ListenerAdapter {
 
 	private static JDA jda;
 	private static final EnumSet<Permission> readPerms = EnumSet.of(Permission.MESSAGE_READ);
+	private static final EnumSet<Permission> selfPerms = EnumSet.of(Permission.MESSAGE_READ, Permission.MESSAGE_WRITE, Permission.MANAGE_CHANNEL, Permission.MESSAGE_EMBED_LINKS);
 
 	private static SQLConnector sql;
 
@@ -104,21 +105,15 @@ public class Argus extends ListenerAdapter {
 				+ "COMMENT = 'Contains all current temporary voice channels';");
 
 		logger.log("INFO", "Setting up Discord-Connection...");
-		JDABuilder builder = JDABuilder.create(GatewayIntent.GUILD_MESSAGES, GatewayIntent.GUILD_VOICE_STATES, GatewayIntent.GUILD_MEMBERS);
-		builder.enableCache(CacheFlag.MEMBER_OVERRIDES, CacheFlag.ROLE_TAGS);
-		builder.disableCache(CacheFlag.ACTIVITY, CacheFlag.EMOTE, CacheFlag.CLIENT_STATUS);
+		JDABuilder builder = JDABuilder.create(GatewayIntent.GUILD_MESSAGES, GatewayIntent.GUILD_VOICE_STATES);
+		builder.enableCache(CacheFlag.MEMBER_OVERRIDES);
+		builder.disableCache(CacheFlag.ACTIVITY, CacheFlag.EMOTE, CacheFlag.CLIENT_STATUS, CacheFlag.ONLINE_STATUS, CacheFlag.ROLE_TAGS);
 		builder.setToken(config.getString("token"));
 		builder.setActivity(Activity.watching("the VoiceChannels"));
-		builder.setMemberCachePolicy(MemberCachePolicy.ALL);
 		builder.addEventListeners(new Argus());
 		try {
 			jda = builder.build();
 			jda.awaitReady();
-			for (Guild guild : jda.getGuilds()) {
-				guild.loadMembers().onSuccess(m -> {
-					logger.log("INFO", "Loaded " + m.size() + " members for " + guild.getName());
-				});
-			}
 		} catch (LoginException | InterruptedException e) {
 			logger.logStackTrace(e);
 			System.exit(1);
@@ -127,13 +122,15 @@ public class Argus extends ListenerAdapter {
 		Executors.newScheduledThreadPool(1).scheduleAtFixedRate(() -> {
 			logger.log("INFO", "Resyncing...");
 			for (Guild guild : jda.getGuilds()) {
-				try {
+				logger.log("INFO", "Resyncing " + guild.getName() + " (" + guild.getId() + ")...");
+				 try {
 					resync(guild);
 				} catch (Exception e) {
 					logger.logStackTrace(e);
 				}
 			}
-		}, 1, 60, TimeUnit.MINUTES);
+			logger.log("INFO", "Resync complete!");
+		}, 1, 360, TimeUnit.MINUTES);
 		logger.log("INFO", "Argus started! I'm watching...");
 	}
 
@@ -159,7 +156,9 @@ public class Argus extends ListenerAdapter {
 						if (guild.getAfkChannel() == null || !joined.getId().equals(guild.getAfkChannel().getId())) {
 							logger.log("INFO", "Processing join event for user \"" + member.getUser().getAsTag() + "\" in \""
 									+ guild.getName() + " / " + joined.getName() + "\"...");
-							tc.putPermissionOverride(member).grant(readPerms).queue();
+							tc.putPermissionOverride(member).grant(readPerms).queue(success -> {}, failure -> {
+								tc.sendMessage("Yo I can't add Permission-Overrides to this channel! Please edit this channel so I explicitely have the `Manage Permissions` permission!").queue();
+							});
 							if (guildConfig.getBoolean("Logging")) {
 								tc.sendMessage("**" + member.getEffectiveName() + "** joined the channel.").queue();
 							}
@@ -188,7 +187,9 @@ public class Argus extends ListenerAdapter {
 						if (guild.getAfkChannel() == null || !left.getId().equals(guild.getAfkChannel().getId())) {
 							logger.log("INFO", "Processing leave event for user \"" + member.getUser().getAsTag() + "\" in \""
 									+ guild.getName() + " / " + left.getName() + "\"...");
-							tc.getPermissionOverride(member).delete().queue();
+							try {
+								tc.getPermissionOverride(member).delete().queue();
+							} catch (NullPointerException e) {}
 							if (guildConfig.getBoolean("Logging")) {
 								tc.sendMessage("**" + member.getEffectiveName() + "** left the channel.").queue();
 							}
@@ -267,8 +268,9 @@ public class Argus extends ListenerAdapter {
 				try (ResultSet association = sql.executeQuery("SELECT * FROM `Associations` WHERE `tc` = " + tc.getId())) {
 					if (association.first()) {
 						VoiceChannel vc = guild.getVoiceChannelById(association.getLong("vc"));
-						logger.log("WARN", "Text Channel for the Voice Channel \"" + vc.getName() + "\" was deleted... Recreating...");
 						removeAssociation(vc.getId());
+						if (guild.getAfkChannel() != null && vc.equals(guild.getAfkChannel())) return;
+						logger.log("WARN", "Text Channel for the Voice Channel \"" + vc.getName() + "\" was deleted... Recreating...");
 						if (createTextChannel(vc, guild, guildConfig)) {
 							logger.log("INFO", "Text-Channel created!");
 						} else {
@@ -285,26 +287,13 @@ public class Argus extends ListenerAdapter {
 			logger.logStackTrace(e);
 		}
 	}
-
-	public static void register(Guild guild) {
-		sql.executeUpdate("INSERT INTO `Settings` (`GuildID`, `Initialized`, `Logging`, `Prefix`, `Names`, `Descriptions`) VALUES ("
-			+ "'" + guild.getId() + "', "
-			+ "'0', "
-			+ "'0', "
-			+ "'a!', "
-			+ "'{vc}-text', "
-			+ "'Text-Channel for everyone in the voice-channel [**{vc}**]')");
-		guild.createTextChannel("argus").addPermissionOverride(guild.getBotRole(), readPerms, null).addPermissionOverride(guild.getPublicRole(), null, readPerms).queue(tc -> {
-			tc.sendMessage(guild.getOwner().getAsMention() + "\n__**Thanks for inviting me!**__\n\nTo start off, run the command `a!setup`!\n**I can't do anything until you do so!**").queueAfter(5, TimeUnit.SECONDS);
-		});
-	}
 	
 	public static boolean createTextChannel(VoiceChannel vc, Guild guild, ResultSet guildConfig) {
 		try {
 			logger.log("INFO", "VC \"" + vc.getName() + "\" has no associated text-channel configured! Creating...");
 			ChannelAction<TextChannel> action = guild.createTextChannel(guildConfig.getString("Names").replace("{vc}", vc.getName()));
 			action.setTopic(guildConfig.getString("Descriptions").replace("{vc}", vc.getName()));
-			action.addPermissionOverride(guild.getBotRole(), readPerms, null);
+			action.addPermissionOverride(guild.getSelfMember(), selfPerms, null);
 			action.addPermissionOverride(guild.getPublicRole(), null, readPerms);
 			if (vc.getParent() != null) {
 				action.setParent(vc.getParent());
@@ -322,10 +311,41 @@ public class Argus extends ListenerAdapter {
 		}
 	}
 
+	public static void register(Guild guild) {
+		try {
+			guild.createTextChannel("argus").addPermissionOverride(guild.getSelfMember(), selfPerms, null).addPermissionOverride(guild.getPublicRole(), null, readPerms).queue(tc -> {
+				guild.retrieveOwner().queue(owner -> {
+					tc.sendMessage(owner.getAsMention() + "\n__**Thanks for inviting me!**__\n\nTo start off, run the command `a!setup`!\n**I can't do anything until you do so!**").queueAfter(5, TimeUnit.SECONDS);
+				});
+			});
+		} catch (InsufficientPermissionException e) {
+			e.printStackTrace();
+			TextChannel tc = null;
+			for (TextChannel channel : guild.getTextChannels()) {
+				if (guild.getSelfMember().hasPermission(channel, Permission.MESSAGE_WRITE)) {
+					tc = channel;
+					break;
+				}
+			}
+			if (tc == null) return;
+			final TextChannel tcf = tc;
+			guild.retrieveOwner().queue(owner -> {
+				tcf.sendMessage(owner.getAsMention() + "\n__**Thanks for inviting me!**__\n\nTo start off, run the command `a!setup`!\n**I can't do anything until you do so!**").queue();
+				tcf.sendMessage("I just realized that I'm missing permissions! I can only do my job properly if I have the following permissions:\n- View Channels\n- Manage Channels\n- Manage Roles\n- Send Messages\n- Embed Links\n- Move Members\n\nIf you wanna know why I need these permissions, check <https://github.com/Ryeera/Argus>!").queue();
+			});
+		}
+		sql.executeUpdate("INSERT INTO `Settings` (`GuildID`, `Initialized`, `Logging`, `Prefix`, `Names`, `Descriptions`) VALUES ("
+			+ "'" + guild.getId() + "', "
+			+ "'0', "
+			+ "'0', "
+			+ "'a!', "
+			+ "'{vc}-text', "
+			+ "'Text-Channel for everyone in the voice-channel [**{vc}**]')");
+	}
+
 	public static void initialize(Guild guild) {
 		try (ResultSet guildConfig = getGuildConfig(guild)) {
 			for (VoiceChannel vc : guild.getVoiceChannels()) {
-				logger.log("INFO", "Checking VC \"" + guild.getName() + " / " + vc.getName() + "\"...");
 				String vcID = vc.getId();
 				ResultSet association = sql.executeQuery("SELECT * FROM `Associations` WHERE `vc` = " + vcID);
 				try {
@@ -359,15 +379,69 @@ public class Argus extends ListenerAdapter {
 					if (guild.getAfkChannel() != null && vc.equals(guild.getAfkChannel())) continue;
 					try {
 						TextChannel tc = guild.getTextChannelById(getAssociation(vc.getId()));
+						//TODO: Remove after a while
+						if (guild.getBotRole() != null) {
+							for (PermissionOverride perm : tc.getRolePermissionOverrides()) {
+								if (perm.getRole().equals(guild.getBotRole())) {
+									tc.putPermissionOverride(guild.getSelfMember()).grant(selfPerms).queue();
+									perm.delete().queueAfter(10, TimeUnit.SECONDS);
+									break;
+								}
+							}
+						}
 						for (PermissionOverride perm : tc.getMemberPermissionOverrides()) {
 							Member permmember = perm.getMember();
-							if (!vc.getMembers().contains(permmember)) {
+							if (!vc.getMembers().contains(permmember) && !permmember.equals(guild.getSelfMember())) {
 								perm.delete().queue();
 							}
 						}
 						for (Member member : vc.getMembers()) {
 							if (!tc.canTalk(member)) {
-								tc.putPermissionOverride(member).grant(readPerms).queue();
+								tc.putPermissionOverride(member).grant(readPerms).queue(success -> {}, failure -> {
+									tc.sendMessage("Yo I can't add Permission-Overrides to this channel! Please edit this channel so I explicitely have the `Manage Permissions` permission!").queue();
+								});
+							}
+						}
+						boolean permswrong = false;
+						if (!guild.getSelfMember().hasPermission(tc, Permission.VIEW_CHANNEL)) {
+							permswrong = true;
+						} else if (!guild.getSelfMember().hasPermission(tc, Permission.MESSAGE_WRITE)) {
+							permswrong = true;
+						} else if (!guild.getSelfMember().hasPermission(tc, Permission.MANAGE_CHANNEL)) {
+							permswrong = true;
+						} else if (!guild.getSelfMember().hasPermission(tc, Permission.MANAGE_PERMISSIONS)) {
+							permswrong = true;
+						} else if (!guild.getSelfMember().hasPermission(tc, Permission.MESSAGE_EMBED_LINKS)) {
+							permswrong = true;
+						}
+						if (permswrong) {
+							try {
+								tc.upsertPermissionOverride(guild.getSelfMember()).grant(selfPerms).queue();
+							} catch (InsufficientPermissionException e) {
+								try {
+									guild.createTextChannel("argus").addPermissionOverride(guild.getSelfMember(), selfPerms, null).addPermissionOverride(guild.getPublicRole(), null, readPerms).queue(nc -> {
+										String prefix = "a!";
+										try {
+											prefix = guildConfig.getString("Prefix").replace("<@!655496558095237130>", "@Argus ");
+										} catch (SQLException e1) {}
+										nc.sendMessage("Hey there! I got permission-issues with " + tc.getAsMention() + "! Please run " + prefix + "debug permcheck to run a detailed permission-checkup on your server. Please readd all missing server- and channel-permissions! Thank youuuuu!").queue();
+									});
+								} catch (InsufficientPermissionException ex) {
+									TextChannel nc = null;
+									for (TextChannel channel : guild.getTextChannels()) {
+										if (guild.getSelfMember().hasPermission(channel, Permission.MESSAGE_WRITE)) {
+											nc = channel;
+											break;
+										}
+									}
+									if (nc != null) {
+										String prefix = "a!";
+										try {
+											prefix = guildConfig.getString("Prefix").replace("<@!655496558095237130>", "@Argus ");
+										} catch (SQLException e1) {}
+										nc.sendMessage("Hey there! I got permission-issues with " + tc.getAsMention() + "! Please run " + prefix + "debug permcheck to run a detailed permission-checkup on your server. Please readd all missing server- and channel-permissions! Thank youuuuu!").queue();
+									}
+								}
 							}
 						}
 					} catch (SQLException e) {
@@ -387,9 +461,6 @@ public class Argus extends ListenerAdapter {
 		Guild guild = event.getGuild();
 		logger.log("INFO", "Joined Guild \"" + guild.getName() + "\"! Sending setup-message...");
 		register(guild);
-		guild.loadMembers().onSuccess(m -> {
-			logger.log("INFO", "Loaded " + m.size() + " members for " + guild.getName());
-		});
 	}
 
 	@Override
@@ -454,6 +525,11 @@ public class Argus extends ListenerAdapter {
 		Member sender = event.getMember();
 		String message = event.getMessage().getContentRaw();
 		try (ResultSet guildConfig = getGuildConfig(guild)) {
+			if (!guildConfig.first()) {
+				register(guild);
+				channel.sendMessage("Apparently your guild wasn't registered yet! This happens when you invite me while I'm offline. No problem though, I will do that for you now! Please wait a minute and then try your command again!").queue();
+				return;
+			}
 			if (message.startsWith(guildConfig.getString("Prefix"))) {
 				message = message.substring(guildConfig.getString("Prefix").length()).trim();
 				if (message.startsWith("temp")) {
@@ -470,63 +546,120 @@ public class Argus extends ListenerAdapter {
 						});
 					}
 				} else if (message.equalsIgnoreCase("help")) {
-					channel.sendMessage(getHelpEmbed(guild)).queue();
-				} else if (message.equalsIgnoreCase("fixperms")) {
-					channel.sendMessage("Fixing permissions to be able to work without Admin-Permissions...").queue();
-					for (VoiceChannel vc : guild.getVoiceChannels()) {
-						if (guild.getAfkChannel() != null && vc.getId().equals(guild.getAfkChannel().getId())) continue;
-						try {
-							TextChannel tc = guild.getTextChannelById(getAssociation(vc.getId()));
-							tc.putPermissionOverride(guild.getBotRole()).grant(readPerms).queue();
-						} catch (Exception e) {
-							logger.log("ERROR", guild.getName() + " / " + vc.getName() + "(" + guild.getId() + " / " + vc.getId() + " has no association!");
-							logger.logStackTrace(e);
-						}
-					}
-					channel.sendMessage("Your server is now up-to-date and you can remove my Admin-Permissions! Remember to instead give me the following permissions:\n"
-							+ "- View Channels\n"
-							+ "- Manage Channels\n"
-							+ "- Manage Roles\n"
-							+ "- Send Messages\n"
-							+ "- Embed Links\n"
-							+ "- Move Members\n\n"
-							+ "If you wanna know why I need these permissions, check <https://github.com/Ryeera/Argus>!").queueAfter(10, TimeUnit.SECONDS);
-				} else if (message.equalsIgnoreCase("resync")) {
-					channel.sendMessage("Manually resyncing this server...").queue();
-					resync(guild);
-					channel.sendMessage("Done resyncing!").queueAfter(5, TimeUnit.SECONDS);
-				} else if (message.startsWith("debug ")) {
-					message = message.substring(6);
-					if (message.equalsIgnoreCase("servercount")) {
-						channel.sendMessage("I am currently in **" + jda.getGuilds().size() + "** servers!").queue();
-					}
-				} else if (message.startsWith("broadcast ") && sender.getId().equals("553576678186680340")) {
-					message = message.substring(10);
-					for (Guild g : jda.getGuilds()) {
-						String prefix = "a!";
-						try (ResultSet conf = getGuildConfig(g)) {
-							prefix = conf.getString("Prefix").replace("<@!655496558095237130>", "@Argus ");
-						} catch (SQLException e) {
-							logger.log("ERROR", g.getName() + "(" + g.getId() + ") Config couldn't be loaded!");
-							logger.logStackTrace(e);
-						}
-						final String mes = message.replace("[OWNER]", g.getOwner().getAsMention()).replace("[PREFIX]", prefix);
-						g.createTextChannel("argus").addPermissionOverride(g.getBotRole(), readPerms, null).addPermissionOverride(g.getPublicRole(), null, readPerms).queue(tc -> {
-							tc.sendMessage(mes).queue(m -> {
-								tc.sendMessage("You can delete this channel when you're done!").queue();
-							});
-						});
-					}
-					channel.sendMessage("Broadcast sent!").queue();
+					channel.sendMessageEmbeds(getHelpEmbed(guild)).queue();
 				} else if (sender.hasPermission(Permission.ADMINISTRATOR)) {
 					if (message.equalsIgnoreCase("setup") && !guildConfig.getBoolean("Initialized")) {
 						channel.sendMessage("Please edit the settings to your liking with `a!settings` and afterwards finish the setup with `a!initialize`!").queue();
+					} else if (message.equalsIgnoreCase("fixperms")) {
+						channel.sendMessage("Fixing permissions to be able to work without Admin-Permissions...").queue();
+						for (VoiceChannel vc : guild.getVoiceChannels()) {
+							if (guild.getAfkChannel() != null && vc.getId().equals(guild.getAfkChannel().getId())) continue;
+							try {
+								TextChannel tc = guild.getTextChannelById(getAssociation(vc.getId()));
+								tc.putPermissionOverride(guild.getSelfMember()).grant(selfPerms).queue();
+							} catch (Exception e) {
+								logger.log("ERROR", guild.getName() + " / " + vc.getName() + "(" + guild.getId() + " / " + vc.getId() + " has no association!");
+								logger.logStackTrace(e);
+							}
+						}
+						channel.sendMessage("Your server is now up-to-date and you can remove my Admin-Permissions! Remember to instead give me the following permissions:\n"
+								+ "- View Channels\n"
+								+ "- Manage Channels\n"
+								+ "- Manage Roles\n"
+								+ "- Send Messages\n"
+								+ "- Embed Links\n"
+								+ "- Move Members\n\n"
+								+ "If you wanna know why I need these permissions, check <https://github.com/Ryeera/Argus>!").queueAfter(10, TimeUnit.SECONDS);
+					} else if (message.equalsIgnoreCase("resync")) {
+						channel.sendMessage("Manually resyncing this server...").queue();
+						resync(guild);
+						channel.sendMessage("Done resyncing!").queueAfter(5, TimeUnit.SECONDS);
+					} else if (message.startsWith("debug ")) {
+						message = message.substring(6);
+						if (message.equalsIgnoreCase("servercount")) {
+							channel.sendMessage("I am currently in **" + jda.getGuilds().size() + "** servers!").queue();
+						} else if (message.equalsIgnoreCase("permcheck")) {
+							String send1 = "__**Server-Permissions:**__";
+							if (guild.getSelfMember().hasPermission(Permission.VIEW_CHANNEL)) {
+								send1 += "\n✅ View Channels";
+							} else {
+								send1 += "\n⛔ View Channels";
+							}
+							if (guild.getSelfMember().hasPermission(Permission.MESSAGE_WRITE)) {
+								send1 += "\n✅ Send Messages";
+							} else {
+								send1 += "\n⛔ Send Messages";
+							}
+							if (guild.getSelfMember().hasPermission(Permission.MESSAGE_EMBED_LINKS)) {
+								send1 += "\n✅ Embed Links";
+							} else {
+								send1 += "\n⛔ Embed Links";
+							}
+							if (guild.getSelfMember().hasPermission(Permission.MANAGE_CHANNEL)) {
+								send1 += "\n✅ Manage Channels";
+							} else {
+								send1 += "\n⛔ Manage Channels";
+							}
+							if (guild.getSelfMember().hasPermission(Permission.MANAGE_ROLES)) {
+								send1 += "\n✅ Manage Roles";
+							} else {
+								send1 += "\n⛔ Manage Roles";
+							}
+							if (guild.getSelfMember().hasPermission(Permission.VOICE_MOVE_OTHERS)) {
+								send1 += "\n✅ Move Members";
+							} else {
+								send1 += "\n⛔ Move Members";
+							}
+							channel.sendMessage(send1).queue(m1 -> {
+								channel.sendMessage("__**Channel-Permissions:**__").queueAfter(3, TimeUnit.SECONDS, m2 -> {
+									for (VoiceChannel vc : guild.getVoiceChannels()) {
+										String send2 = "**Voice-Channel:** " + vc.getAsMention();
+										try {
+											TextChannel tc = guild.getTextChannelById(getAssociation(vc.getId()));
+											if (tc == null) {
+												send2 += "\nNo associated Text-Channel found!";
+											} else {
+												send2 += "\nAssociated text-channel: " + tc.getAsMention();
+												if (guild.getSelfMember().hasPermission(tc, Permission.VIEW_CHANNEL)) {
+													send2 += "\n✅ View Channel";
+												} else {
+													send2 += "\n⛔ View Channel";
+												}
+												if (guild.getSelfMember().hasPermission(tc, Permission.MESSAGE_WRITE)) {
+													send2 += "\n✅ Send Messages";
+												} else {
+													send2 += "\n⛔ Send Messages";
+												}
+												if (guild.getSelfMember().hasPermission(tc, Permission.MANAGE_CHANNEL)) {
+													send2 += "\n✅ Manage Channel";
+												} else {
+													send2 += "\n⛔ Manage Channel";
+												}
+												if (guild.getSelfMember().hasPermission(tc, Permission.MANAGE_PERMISSIONS)) {
+													send2 += "\n✅ Manage Permissions";
+												} else {
+													send2 += "\n⛔ Manage Permissions";
+												}
+												if (guild.getSelfMember().hasPermission(tc, Permission.MESSAGE_EMBED_LINKS)) {
+													send2 += "\n✅ Embed Links";
+												} else {
+													send2 += "\n⛔ Embed Links";
+												}
+											}
+										} catch (SQLException e) {
+											send2 += "\nNo associated Text-Channel found!";
+										}
+										channel.sendMessage(send2).queue();
+									}
+								});
+							});
+						}
 					} else if (message.equalsIgnoreCase("initialize") && !guildConfig.getBoolean("Initialized")) {
 						channel.sendMessage("Initialization in progress...").queue();
 						initialize(guild);
-						channel.sendMessage("Setup complete! You can now delete this channel!").queueAfter(6, TimeUnit.SECONDS);
+						channel.sendMessage("Setup complete!").queueAfter(6, TimeUnit.SECONDS);
 					} else if (message.equalsIgnoreCase("settings")) {
-						channel.sendMessage(getSettingsEmbed(guild)).queue();
+						channel.sendMessageEmbeds(getSettingsEmbed(guild)).queue();
 					} else if (message.startsWith("settings ")) {
 						message = message.substring(9);
 						if (message.equalsIgnoreCase("prefix")) {
@@ -570,6 +703,41 @@ public class Argus extends ListenerAdapter {
 							}
 						}
 					}
+				} else if (message.startsWith("broadcast ") && sender.getId().equals("553576678186680340")) {
+					message = message.substring(10);
+					for (Guild g : jda.getGuilds()) {
+						String prefix = "a!";
+						try (ResultSet conf = getGuildConfig(g)) {
+							prefix = conf.getString("Prefix").replace("<@!655496558095237130>", "@Argus ");
+						} catch (SQLException e) {
+							logger.log("ERROR", g.getName() + "(" + g.getId() + ") Config couldn't be loaded!");
+							logger.logStackTrace(e);
+						}
+						final String messagef = message;
+						final String prefixf = prefix;
+						guild.retrieveOwner().queue(owner -> {
+							final String mes = messagef.replace("[OWNER]", owner.getAsMention()).replace("[PREFIX]", prefixf);
+							try {
+								g.createTextChannel("argus").addPermissionOverride(g.getSelfMember(), selfPerms, null).addPermissionOverride(g.getPublicRole(), null, readPerms).queue(tc -> {
+									tc.sendMessage(mes).queue(m -> {
+										tc.sendMessage("You can delete this channel when you're done!").queue();
+									});
+								});
+							} catch (InsufficientPermissionException e) {
+								TextChannel tc = null;
+								for (TextChannel c : guild.getTextChannels()) {
+									if (guild.getSelfMember().hasPermission(c, Permission.MESSAGE_WRITE)) {
+										tc = c;
+										break;
+									}
+								}
+								if (tc != null) { 
+									tc.sendMessage(mes).queue();
+								}
+							}
+						});
+					}
+					channel.sendMessage("Broadcast sent!").queue();
 				}
 			}
 		} catch (SQLException e) {

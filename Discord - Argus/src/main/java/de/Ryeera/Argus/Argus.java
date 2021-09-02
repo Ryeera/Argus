@@ -92,7 +92,7 @@ public class Argus extends ListenerAdapter {
 				+ "`Prefix` VARCHAR(32) CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL DEFAULT 'a!' , "
 				+ "`Names` VARCHAR(100) CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL DEFAULT '{vc}-text' , "
 				+ "`Descriptions` VARCHAR(1024) CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL DEFAULT 'Text-Channel for everyone in the voice-channel [**{vc}**]' , "
-				+ "`TempCatID` BIGINT(20) UNSIGNED NOT NULL DEFAULT '0' , "
+				+ "`CategoryID` BIGINT(18) UNSIGNED NOT NULL DEFAULT '0' , "
 				+ "PRIMARY KEY (`GuildID`)) " 
 				+ "COMMENT = 'Contains all Settings for Argus';");
 		sql.executeUpdate("CREATE TABLE IF NOT EXISTS `Associations` ( " 

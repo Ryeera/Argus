@@ -92,6 +92,7 @@ public class Argus extends ListenerAdapter {
 				+ "`Prefix` VARCHAR(32) CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL DEFAULT 'a!' , "
 				+ "`Names` VARCHAR(100) CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL DEFAULT '{vc}-text' , "
 				+ "`Descriptions` VARCHAR(1024) CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL DEFAULT 'Text-Channel for everyone in the voice-channel [**{vc}**]' , "
+				+ "`TempCatID` BIGINT(20) UNSIGNED NOT NULL DEFAULT '0' , "
 				+ "PRIMARY KEY (`GuildID`)) " 
 				+ "COMMENT = 'Contains all Settings for Argus';");
 		sql.executeUpdate("CREATE TABLE IF NOT EXISTS `Associations` ( " 
@@ -534,12 +535,13 @@ public class Argus extends ListenerAdapter {
 				message = message.substring(guildConfig.getString("Prefix").length()).trim();
 				if (message.startsWith("temp")) {
 					final String name = message.substring(5);
-					if (guild.getCategoriesByName("Temp", true).size() > 0) {
-						guild.getCategoriesByName("Temp", true).get(0).createVoiceChannel(name).queue(v -> {
+					if (guild.getCategoryById(guildConfig.getString("TempCatID")) != null) {
+						guild.getCategoryById(guildConfig.getString("TempCatID")).createVoiceChannel(name).queue(v -> {
 							addTemporaryVC(v.getId());
 						});
 					} else {
-						guild.createCategory("Temp").queue(c -> {
+						guild.createCategory("Temp Channels").queue(c -> {
+							sql.executeUpdate("UPDATE `Settings` SET `TempCatID` = '" + c.getIdLong() + "' WHERE `GuildID` = " + guild.getId());
 							c.createVoiceChannel(name).queue(v -> {
 								addTemporaryVC(v.getId());
 							});
@@ -699,7 +701,7 @@ public class Argus extends ListenerAdapter {
 								channel.sendMessage("The maximum length for a channel-description is 1024 characters! Your description was " + message.length() + " characters long.").queue();
 							} else {
 								sql.executeUpdate("UPDATE `Settings` SET `Descriptions` = '" + message + "' WHERE `GuildID` = " + guild.getId());
-								channel.sendMessage("Name for new Text-Channels set to `" + message + "`.").queue();
+								channel.sendMessage("Description for new Text-Channels set to `" + message + "`.").queue();
 							}
 						}
 					}

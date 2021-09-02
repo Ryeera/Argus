@@ -9,7 +9,7 @@ But here comes the catch: These text-channels are invisible until you actually j
 And if that wasn't enough yet, I can also create temporary voice-channels with just one command and log the joins and leaves in the text-channel!
 
 ## Invite
-You can invite me to your server using this link: [INVITE](https://discord.com/oauth2/authorize?client_id=709749978326630410&permissions=285232152&scope=bot)
+You can invite me to your server using this link: [INVITE](https://discord.com/api/oauth2/authorize?client_id=655496558095237130&permissions=285232152&scope=bot)
 
 ## Setup
 When you invite me to your server, I will make a new channel, which only admins can see, and explain everything there. Don't worry, you can delete it when we're done.

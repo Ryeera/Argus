@@ -6,10 +6,10 @@ When you add me to your server, I will add a text-channel for each voice-channel
 
 But here comes the catch: These text-channels are invisible until you actually join the voice-channel! This has the upside, that nobody can see or write in the text-channel, unless they are in the corresponding voice-channel (or unless you're an admin, sorry I can't do anything about that ^^").  
 
-And if that wasn't enough yet, I can also create temporary voice-channels with just one command and optionally log the joins and leaves!
+And if that wasn't enough yet, I can also create temporary voice-channels with just one command and log the joins and leaves in the text-channel!
 
-## Add me!
-You can add me to your Discord-Server by clicking [here](https://discord.com/api/oauth2/authorize?client_id=655496558095237130&permissions=285232144&scope=bot)
+## Invite
+You can invite me to your server using this link: [INVITE](https://discord.com/api/oauth2/authorize?client_id=655496558095237130&permissions=285232152&scope=bot)
 
 ## Setup
 When you invite me to your server, I will make a new channel, which only admins can see, and explain everything there. Don't worry, you can delete it when we're done.
@@ -26,6 +26,9 @@ All commands need to be preceded with the prefix you set. If you haven't set one
 `a!resync` - manually resyncs your server. Use this if you notice that someone is missing their permissions to see the text-channel they should see.
 
 ## FAQ
+**Why does Argus need Administrator permissions?**
+Discord's permissions are REALLY weird. If I try to add a permission-override in a channel that is in a hidden category, I need explicit "Manage Permissions"-permission in this text-channel. And I can only give me that permission if I already have it. Or have admin-permissions. So you don't have to give me admin-permissions, you unfortunately have to manually edit every text-channel I create. If you don't want to give me admin-permissions and are still wondering why I need the other permissions, keep reading!
+
 **Why does Argus need the Manage Roles permission?**  
 Manage Roles allows me to change permission-overrides in Text-Channels. I won't change anything in your role-system, and if you don't trust me, you can move my role all the way to the bottom, I'll still do my thing but I can't change any roles above mine ^^
 
@@ -37,9 +40,6 @@ Although this feature is not implemented yet, I will be able to move members int
 
 **Why does Argus not work with some channels?**  
 If that happens, please join my Discord-Server below, so Ryeera can help you. It shouldn't happen, but if it does, please tell him.
-
-## Support
-If you have any feature-requests, bug-reports or change-requests, feel free to drop by at my [Discord-Server](https://discord.gg/ffrArfErfH)!
 
 ## Planned Features
 - Private Voice-Channels

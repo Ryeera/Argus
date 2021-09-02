@@ -92,7 +92,7 @@ public class Argus extends ListenerAdapter {
 				+ "`Prefix` VARCHAR(32) CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL DEFAULT 'a!' , "
 				+ "`Names` VARCHAR(100) CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL DEFAULT '{vc}-text' , "
 				+ "`Descriptions` VARCHAR(1024) CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL DEFAULT 'Text-Channel for everyone in the voice-channel [**{vc}**]' , "
-				+ "`CategoryID` BIGINT(18) UNSIGNED NOT NULL DEFAULT '0' , "
+				+ "`TempCatID` BIGINT(20) UNSIGNED NOT NULL DEFAULT '0' , "
 				+ "PRIMARY KEY (`GuildID`)) " 
 				+ "COMMENT = 'Contains all Settings for Argus';");
 		sql.executeUpdate("CREATE TABLE IF NOT EXISTS `Associations` ( " 
@@ -535,13 +535,13 @@ public class Argus extends ListenerAdapter {
 				message = message.substring(guildConfig.getString("Prefix").length()).trim();
 				if (message.startsWith("temp")) {
 					final String name = message.substring(5);
-					if (guild.getCategoryById(guildConfig.getString("CategoryID")) != null) {
-						guild.getCategoryById(guildConfig.getString("CategoryID")).createVoiceChannel(name).queue(v -> {
+					if (guild.getCategoryById(guildConfig.getString("TempCatID")) != null) {
+						guild.getCategoryById(guildConfig.getString("TempCatID")).createVoiceChannel(name).queue(v -> {
 							addTemporaryVC(v.getId());
 						});
 					} else {
 						guild.createCategory("Temp Channels").queue(c -> {
-							sql.executeUpdate("UPDATE `Settings` SET `CategoryID` = '" + c.getIdLong() + "' WHERE `GuildID` = " + guild.getId());
+							sql.executeUpdate("UPDATE `Settings` SET `TempCatID` = '" + c.getIdLong() + "' WHERE `GuildID` = " + guild.getId());
 							c.createVoiceChannel(name).queue(v -> {
 								addTemporaryVC(v.getId());
 							});

@@ -41,11 +41,8 @@ Although this feature is not implemented yet, I will be able to move members int
 **Why does Argus not work with some channels?**  
 If that happens, please join my Discord-Server below, so Ryeera can help you. It shouldn't happen, but if it does, please tell him.
 
+**Can I have my data deleted?**
+Of course! Open a new Data Deletion Request by clicking on "Issues" up top! We will try to get to it as quickly as possible and all your data will be deleted completely.
+
 ## Planned Features
-- Private Voice-Channels
-- Command to make it so a voice-channel doesn't have an associated text-channel anymore / blacklist
-- More Options
-  - Instead of assigning permissions to an existing text-channel, create a new text-channel (more organized for admins)
-  - Format Logging
-  - Create Master-text-channel for copying permissions (for example so that mods can always see the text-channels)
-- Support for bots like Server Stats that use voice-channels in a way that means that Argus shouldn't create a text-channel for them.
+See the Issues-page for planned features and to request more or report bugs!
